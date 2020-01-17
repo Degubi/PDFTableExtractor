@@ -1,0 +1,1 @@
+cmd /k ""%~dp0\bin\java" -jar "%~dp0\PDFToXLSX.jar"" %*
