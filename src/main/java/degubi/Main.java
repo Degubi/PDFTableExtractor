@@ -62,7 +62,8 @@ public final class Main {
                   }
               });
         
-        System.out.print("All done");
+        System.out.print("All done, press enter");
+        System.console().readLine();
     }
 
     private static void storeTableData(XSSFWorkbook excelOutput, String[][] tableData) {
