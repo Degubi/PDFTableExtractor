@@ -1,3 +1,6 @@
 /target/
 /lib/
+/PDFToXLSX/
 .settings
+*.pdf
+*.xlsx

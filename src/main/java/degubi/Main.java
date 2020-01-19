@@ -48,14 +48,15 @@ public final class Main {
                                    .map(textExtractor::extract)
                                    .flatMap(List::stream)
                                    .map(Table::getRows)
-                                   .map(Main::convertToTableData)
-                                   .filter(tableData -> tableData.length > 1 && tableData[0].length > 1)
+                                   .filter(tableData -> tableData.size() > 1 && tableData.get(0).size() > 1)
                                    .forEach(tableData -> storeTableData(excelOutput, tableData));
                       
                       System.out.println("Writing excel to: " + outputFile);
                       excelOutput.write(outputStream);
                       System.out.println("Finished: " + outputFile + '\n');
                   }catch(Exception e) {
+                      System.out.println("An error happened, check error.txt for details");
+                      
                       try(var exceptionOutput = new PrintStream("error.txt")){
                           e.printStackTrace(exceptionOutput);
                       } catch (FileNotFoundException e1) {}
@@ -66,10 +67,10 @@ public final class Main {
         System.console().readLine();
     }
 
-    private static void storeTableData(XSSFWorkbook excelOutput, String[][] tableData) {
+    private static void storeTableData(XSSFWorkbook excelOutput, @SuppressWarnings("rawtypes") List<List<RectangularTextContainer>> tableData) {
         var pageSheet = excelOutput.createSheet((excelOutput.getNumberOfSheets() + 1) + ".");
          
-         IntStream.range(0, tableData.length)
+         IntStream.range(0, tableData.size())
                   .forEach(rowIndex -> fillWithData(tableData, pageSheet, rowIndex));
          
          IntStream.range(0, pageSheet.getRow(0).getPhysicalNumberOfCells())
@@ -78,16 +79,13 @@ public final class Main {
          pageSheet.setActiveCell(new CellAddress(0, 0));
     }
     
-    private static String[][] convertToTableData(@SuppressWarnings("rawtypes") List<List<RectangularTextContainer>> rows){
-        return rows.stream()
-                   .map(row -> row.stream().map(RectangularTextContainer::getText).toArray(String[]::new))
-                   .toArray(String[][]::new);
-    }
-
-    private static void fillWithData(String[][] textData, XSSFSheet pageSheet, int rowIndex) {
+    private static void fillWithData(@SuppressWarnings("rawtypes") List<List<RectangularTextContainer>> tableData, XSSFSheet pageSheet, int rowIndex) {
         var excelRow = pageSheet.createRow(rowIndex);
         
-        IntStream.range(0, textData[rowIndex].length)
-                 .forEach(columnIndex -> excelRow.createCell(columnIndex).setCellValue(textData[rowIndex][columnIndex]));
+        IntStream.range(0, tableData.get(rowIndex).size())
+                 .forEach(columnIndex -> {
+                     var cellValue = tableData.get(rowIndex).get(columnIndex).getText();
+                     excelRow.createCell(columnIndex).setCellValue(cellValue);
+                 });
     }
 }
