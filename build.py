@@ -10,7 +10,8 @@ jlinkCommand = (r"jlink --output ./PDFToXLSX/ "
 
 call(jlinkCommand)
 copy("icon.ico", "./PDFToXLSX/icon.ico")
-copy("createShortcut.vbs", "./PDFToXLSX/createShortcut.vbs")
+copy("createShortcut_EmptyPageFilter.vbs", "./PDFToXLSX/createShortcut_EmptyPageFilter.vbs")
+copy("createShortcut_NoPageFilter.vbs", "./PDFToXLSX/createShortcut_NoPageFilter.vbs")
 copytree("lib", "./PDFToXLSX/lib/app")
 call("jar cfm PDFToXLSX.jar MANIFEST.MF -C target/classes module-info.class -C target/classes degubi")
 rename("PDFToXLSX.jar", "./PDFToXLSX/PDFToXLSX.jar")
