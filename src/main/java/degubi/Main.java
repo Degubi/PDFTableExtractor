@@ -19,19 +19,21 @@ public final class Main {
     
     public static void main(String[] args) {
         System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
-        if(args.length == 0) {
-            System.out.println("No args were defined");
+        System.out.print("Filters: ");
+        var argsSeparated = Arrays.stream(args).collect(Collectors.partitioningBy(k -> k.charAt(0) == '-'));
+        var pageFilterFunction = argsSeparated.get(Boolean.TRUE).stream()
+                                              .peek(k -> System.out.print(k + " "))
+                                              .map(Main::getPageFilterFunction)
+                                              .reduce(k -> true, Predicate::and);
+        System.out.println('\n');
+        
+        var inputFiles = argsSeparated.get(Boolean.FALSE);
+        if(inputFiles.size() == 0) {
+            System.out.println("No files were defined for extraction");
             return;
         }
         
-        if(args.length == 1) {
-            System.out.println("No pdf-s were defined for extraction");
-            return;
-        }
-        
-        var pageFilterFunction = getPageFilterFunction(args[0]);
-        if(pageFilterFunction != null) {
-            Arrays.stream(args)
+        inputFiles.stream()
                   .map(Path::of)
                   .map(Path::toAbsolutePath)
                   .map(Path::toString)
@@ -71,32 +73,18 @@ public final class Main {
                           } catch (FileNotFoundException e1) {}
                       }
                   });
-            
-            System.out.print("All done, press enter");
-        }
         
+        System.out.print("All done, press enter");
         System.console().readLine();
     }
 
-    private static Predicate<List<List<RectangularTextContainer>>> getPageFilterFunction(String modeArg){
-        try {
-            var filterMode = Integer.parseInt(modeArg);
-            
-            if(filterMode == 0) {
-                System.out.println("Not using page filters\n");
-                return tableData -> true;
-            }
-            if(filterMode == 1) {
-                System.out.println("Using empty page filter\n");
-                return tableData -> tableData.size() > 1 && tableData.get(0).size() > 1;
-            }
-            
-            System.out.println("Unknown argument for filter mode: " + modeArg);
-            return null;
-        }catch(NumberFormatException e) {
-            System.out.println("Unknown argument for filter mode: " + modeArg);
-            return null;
+    private static Predicate<List<List<RectangularTextContainer>>> getPageFilterFunction(String mode){
+        if(mode.equals("-SingleCell")) {
+            return tableData -> tableData.size() > 1 && tableData.get(0).size() > 1;
         }
+        
+        System.out.println("\nUnknown filter mode: " + mode + ", skipping");
+        return k -> true;
     }
     
     private static void storeTableData(XSSFWorkbook excelOutput, List<List<RectangularTextContainer>> tableData) {
