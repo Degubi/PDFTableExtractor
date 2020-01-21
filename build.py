@@ -4,16 +4,15 @@ from os import remove, rename
 
 jlinkCommand = (r"jlink --output ./PDFToXLSX/ "
                  "--no-man-pages "
-                 "--add-modules java.base,java.desktop "
                  "--no-header-files "
+                 "--add-modules java.base,java.desktop,java.sql "
                  "--compress=2")
 
 print("Generating runtime")
 call(jlinkCommand)
 print("Copying files")
 copy("icon.ico", "./PDFToXLSX/icon.ico")
-copy("createShortcut_SingleCellPageFilter.vbs", "./PDFToXLSX/createShortcut_SingleCellPageFilter.vbs")
-copy("createShortcut_NoPageFilter.vbs", "./PDFToXLSX/createShortcut_NoPageFilter.vbs")
+copy("createShortcut.vbs", "./PDFToXLSX/createShortcut.vbs")
 copytree("./target/lib", "./PDFToXLSX/lib/app")
 print("Creating jar")
 call("jar cfm PDFToXLSX.jar MANIFEST.MF -C target/classes module-info.class -C target/classes degubi")
