@@ -21,6 +21,7 @@ import technology.tabula.extractors.*;
 public final class Main {
     public static final String SETTING_PARALLEL_EXTRACTION = "parallelExtraction";
     public static final String SETTING_PAGEFILTERS = "pageFilters";
+    public static final String SETTING_AUTOSIZE_COLUMNS = "autosizeColumns";
     public static final String FILTER_EMPTYPAGE = "emptyPage";
     public static final String FILTER_SINGLECELL = "singleCellPage";
     
@@ -31,6 +32,7 @@ public final class Main {
         var settings = readSettings(settingsPath, gson);
         var filters = getArraySetting(SETTING_PAGEFILTERS, settings);
         var parallelExtraction = getBooleanSetting(SETTING_PARALLEL_EXTRACTION, false, settings);
+        var autosizeColumns = getBooleanSetting(SETTING_AUTOSIZE_COLUMNS, true, settings);
         
         if(args.length == 0) {
             try {
@@ -41,6 +43,7 @@ public final class Main {
             var frame = new JFrame("Settings");
             var panel = new JPanel(null);
             var parallelCheckBox = newCheckbox(100, 60, "Parallel PDF Extraction", parallelExtraction);
+            var autosizeCheckBox = newCheckbox(220, 60, "Autosize Columns After Extraction", autosizeColumns);
             var filterCheckboxes = new JCheckBox[] {newCheckbox(100, 30, "Empty Page Filter", filtersList.contains(FILTER_EMPTYPAGE)),
                                                     newCheckbox(220, 30, "Single Cell Page Filter", filtersList.contains(FILTER_SINGLECELL))};
             
@@ -48,6 +51,7 @@ public final class Main {
             Arrays.stream(filterCheckboxes).forEach(panel::add);
             panel.add(newLabel(20, 60, "Other:"));
             panel.add(parallelCheckBox);
+            panel.add(autosizeCheckBox);
             
             frame.setContentPane(panel);
             frame.setBounds(0, 0, 600, 400);
@@ -56,7 +60,7 @@ public final class Main {
             frame.setResizable(false);
             frame.setVisible(true);
             
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> saveSettings(gson, settingsPath, settings, filterCheckboxes, parallelCheckBox)));
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> saveSettings(gson, settingsPath, settings, filterCheckboxes, parallelCheckBox, autosizeCheckBox)));
         }else{
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
             
@@ -91,7 +95,7 @@ public final class Main {
                                        .flatMap(List::stream)
                                        .map(Table::getRows)
                                        .filter(pageFilterFunction)
-                                       .forEach(tableData -> storeTableData(excelOutput, tableData));
+                                       .forEach(tableData -> storeTableData(excelOutput, tableData, autosizeColumns));
                           
                           System.out.println("Writing excel to: " + outputFile);
                           excelOutput.write(outputStream);
@@ -121,16 +125,20 @@ public final class Main {
         }
     }
     
-    private static void storeTableData(XSSFWorkbook excelOutput, List<List<RectangularTextContainer>> tableData) {
+    private static void storeTableData(XSSFWorkbook excelOutput, List<List<RectangularTextContainer>> tableData, boolean autosizeColumns) {
         var pageSheet = excelOutput.createSheet((excelOutput.getNumberOfSheets() + 1) + ".");
          
          IntStream.range(0, tableData.size())
                   .forEach(rowIndex -> fillWithData(tableData, pageSheet, rowIndex));
          
-         IntStream.range(0, pageSheet.getRow(0).getPhysicalNumberOfCells())
-                  .forEach(pageSheet::autoSizeColumn);
-         
-         pageSheet.setActiveCell(new CellAddress(0, 0));
+         if(pageSheet.getPhysicalNumberOfRows() > 0) {
+             if(autosizeColumns) {
+                 IntStream.range(0, pageSheet.getRow(0).getPhysicalNumberOfCells())
+                          .forEach(pageSheet::autoSizeColumn);
+             }
+             
+             pageSheet.setActiveCell(new CellAddress(0, 0));
+         }
     }
     
     private static void fillWithData(List<List<RectangularTextContainer>> tableData, XSSFSheet pageSheet, int rowIndex) {
@@ -180,12 +188,15 @@ public final class Main {
         }
     }
     
-    private static void saveSettings(Gson gson, Path settingsPath, JsonObject settings, JCheckBox[] filterCheckboxes, JCheckBox parallelCheckbox) {
+    private static void saveSettings(Gson gson, Path settingsPath, JsonObject settings,
+                                     JCheckBox[] filterCheckboxes, JCheckBox parallelCheckbox, JCheckBox autosizeColumns) {
+        
         var newFiltersArray = new JsonArray();
         if(filterCheckboxes[0].isSelected()) newFiltersArray.add(FILTER_EMPTYPAGE);
         if(filterCheckboxes[1].isSelected()) newFiltersArray.add(FILTER_SINGLECELL);
         
         settings.add(SETTING_PAGEFILTERS, newFiltersArray);
+        settings.addProperty(SETTING_AUTOSIZE_COLUMNS, Boolean.valueOf(autosizeColumns.isSelected()));
         settings.addProperty(SETTING_PARALLEL_EXTRACTION, Boolean.valueOf(parallelCheckbox.isSelected()));
         
         writeStringToFile(settingsPath, gson.toJson(settings));
