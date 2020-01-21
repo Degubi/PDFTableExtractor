@@ -4,9 +4,9 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>degubi</groupId>
-    <artifactId>PDFToText</artifactId>
+    <artifactId>PDFToXLSX</artifactId>
     <version>1.0</version>
-    <name>PDFToText</name>
+    <name>PDFToXLSX</name>
 
     <properties>
         <maven.compiler.source>13</maven.compiler.source>

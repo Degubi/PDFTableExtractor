@@ -8,7 +8,6 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.List;
-import java.util.function.*;
 import java.util.stream.*;
 import javax.swing.*;
 import org.apache.pdfbox.pdmodel.*;
@@ -20,17 +19,17 @@ import technology.tabula.extractors.*;
 @SuppressWarnings("rawtypes")
 public final class Main {
     public static final String SETTING_PARALLEL_EXTRACTION = "parallelExtraction";
-    public static final String SETTING_PAGEFILTERS = "pageFilters";
+    public static final String SETTING_MIN_ROWS_PER_PAGE = "minRowsPerPage";
+    public static final String SETTING_MIN_COLUMNS_PER_PAGE = "minColumnsPerPage";
     public static final String SETTING_AUTOSIZE_COLUMNS = "autosizeColumns";
-    public static final String FILTER_EMPTYPAGE = "emptyPage";
-    public static final String FILTER_SINGLECELL = "singleCellPage";
     
     public static void main(String[] args) {
         var gson = new GsonBuilder().setPrettyPrinting().create();
         var sourceDir = Path.of(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath().substring(1)).getParent().toString().replace("%20", " ");
         var settingsPath = Path.of(sourceDir + "/settings.json");
         var settings = readSettings(settingsPath, gson);
-        var filters = getArraySetting(SETTING_PAGEFILTERS, settings);
+        var minRowsPerPage = getIntSetting(SETTING_MIN_ROWS_PER_PAGE, 1, settings);
+        var minColumnsPerPage = getIntSetting(SETTING_MIN_COLUMNS_PER_PAGE, 1, settings);
         var parallelExtraction = getBooleanSetting(SETTING_PARALLEL_EXTRACTION, false, settings);
         var autosizeColumns = getBooleanSetting(SETTING_AUTOSIZE_COLUMNS, true, settings);
         
@@ -39,17 +38,19 @@ public final class Main {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
             } catch (Exception e) {}
             
-            var filtersList = filters.collect(Collectors.toList());
             var frame = new JFrame("Settings");
             var panel = new JPanel(null);
-            var parallelCheckBox = newCheckbox(100, 60, "Parallel PDF Extraction", parallelExtraction);
-            var autosizeCheckBox = newCheckbox(220, 60, "Autosize Columns After Extraction", autosizeColumns);
-            var filterCheckboxes = new JCheckBox[] {newCheckbox(100, 30, "Empty Page Filter", filtersList.contains(FILTER_EMPTYPAGE)),
-                                                    newCheckbox(220, 30, "Single Cell Page Filter", filtersList.contains(FILTER_SINGLECELL))};
+            var oneThruTen = IntStream.rangeClosed(1, 10).boxed().toArray(Integer[]::new);
+            var minRowsComboBox = newCombobox(200, 30, minRowsPerPage, oneThruTen);
+            var minColumnsComboBox = newCombobox(200, 70, minColumnsPerPage, oneThruTen);
+            var parallelCheckBox = newCheckbox(100, 110, "Parallel Extraction", parallelExtraction);
+            var autosizeCheckBox = newCheckbox(260, 110, "Autosize Columns After Extraction", autosizeColumns);
             
-            panel.add(newLabel(20, 30, "Filters:"));
-            Arrays.stream(filterCheckboxes).forEach(panel::add);
-            panel.add(newLabel(20, 60, "Other:"));
+            panel.add(newLabel(20, 30, "Min. number of rows per page:"));
+            panel.add(minRowsComboBox);
+            panel.add(newLabel(20, 70, "Min. number of columns per page:"));
+            panel.add(minColumnsComboBox);
+            panel.add(newLabel(20, 110, "Other:"));
             panel.add(parallelCheckBox);
             panel.add(autosizeCheckBox);
             
@@ -60,12 +61,9 @@ public final class Main {
             frame.setResizable(false);
             frame.setVisible(true);
             
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> saveSettings(gson, settingsPath, settings, filterCheckboxes, parallelCheckBox, autosizeCheckBox)));
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> saveSettings(gson, settingsPath, settings, parallelCheckBox, autosizeCheckBox, minRowsComboBox, minColumnsComboBox)));
         }else{
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
-            
-            var pageFilterFunction = filters.map(Main::getPageFilterFunction)
-                                            .reduce(k -> true, Predicate::and);
             
             var pdfSrc = parallelExtraction ? Arrays.stream(args).parallel()
                                             : Arrays.stream(args);
@@ -94,7 +92,7 @@ public final class Main {
                                        .map(textExtractor::extract)
                                        .flatMap(List::stream)
                                        .map(Table::getRows)
-                                       .filter(pageFilterFunction)
+                                       .filter(tableData -> tableData.size() >= minRowsPerPage && tableData.get(0).size() >= minColumnsPerPage)
                                        .forEach(tableData -> storeTableData(excelOutput, tableData, autosizeColumns));
                           
                           System.out.println("Writing excel to: " + outputFile);
@@ -113,17 +111,6 @@ public final class Main {
             System.console().readLine();
         }
     }
-
-    private static Predicate<List<List<RectangularTextContainer>>> getPageFilterFunction(String filterName){
-        switch(filterName) {  //TODO: Make this a return expression switch in Java14
-            case FILTER_EMPTYPAGE : return tableData -> tableData.size() > 0;
-            case FILTER_SINGLECELL : return tableData -> tableData.size() > 1 && tableData.get(0).size() > 1;
-            default : {
-                System.out.println("\nUnknown filter mode: " + filterName + ", skipping");
-                return k -> true;
-            }
-        }
-    }
     
     private static void storeTableData(XSSFWorkbook excelOutput, List<List<RectangularTextContainer>> tableData, boolean autosizeColumns) {
         var pageSheet = excelOutput.createSheet((excelOutput.getNumberOfSheets() + 1) + ".");
@@ -131,14 +118,12 @@ public final class Main {
          IntStream.range(0, tableData.size())
                   .forEach(rowIndex -> fillWithData(tableData, pageSheet, rowIndex));
          
-         if(pageSheet.getPhysicalNumberOfRows() > 0) {
-             if(autosizeColumns) {
-                 IntStream.range(0, pageSheet.getRow(0).getPhysicalNumberOfCells())
-                          .forEach(pageSheet::autoSizeColumn);
-             }
-             
-             pageSheet.setActiveCell(new CellAddress(0, 0));
+         if(autosizeColumns) {
+             IntStream.range(0, pageSheet.getRow(0).getPhysicalNumberOfCells())
+                      .forEach(pageSheet::autoSizeColumn);
          }
+             
+         pageSheet.setActiveCell(new CellAddress(0, 0));
     }
     
     private static void fillWithData(List<List<RectangularTextContainer>> tableData, XSSFSheet pageSheet, int rowIndex) {
@@ -161,17 +146,13 @@ public final class Main {
         return defaultValue;
     }
     
-    private static Stream<String> getArraySetting(String setting, JsonObject settings) {
-        var values = settings.get(setting);
-        
-        if(values == null) {
-            var emptyArray = new JsonArray();
-            settings.add(setting, emptyArray);
-            values = emptyArray;
+    private static int getIntSetting(String setting, int defaultValue, JsonObject settings) {
+        if(settings.has(setting)) {
+            return settings.get(setting).getAsInt();
         }
         
-        return StreamSupport.stream(values.getAsJsonArray().spliterator(), false)
-                            .map(JsonElement::getAsString);
+        settings.addProperty(setting, Integer.valueOf(defaultValue));
+        return defaultValue;
     }
     
     private static JsonObject readSettings(Path settingsPath, Gson gson) {
@@ -180,26 +161,23 @@ public final class Main {
             
             return gson.fromJson(settingsStr, JsonObject.class);
         } catch (IOException e) {
-            var defaultSettings = new JsonObject();
-            defaultSettings.add(SETTING_PAGEFILTERS, new JsonArray());
-            
-            writeStringToFile(settingsPath, gson.toJson(defaultSettings));
-            return defaultSettings;
+            return new JsonObject();
         }
     }
     
-    private static void saveSettings(Gson gson, Path settingsPath, JsonObject settings,
-                                     JCheckBox[] filterCheckboxes, JCheckBox parallelCheckbox, JCheckBox autosizeColumns) {
+    private static void saveSettings(Gson gson, Path settingsPath, JsonObject settings, JCheckBox parallelCheckbox, JCheckBox autosizeColumns,
+                                     JComboBox<Integer> minRowsPerPageSelector, JComboBox<Integer> minColumnsPerPageSelector) {
         
-        var newFiltersArray = new JsonArray();
-        if(filterCheckboxes[0].isSelected()) newFiltersArray.add(FILTER_EMPTYPAGE);
-        if(filterCheckboxes[1].isSelected()) newFiltersArray.add(FILTER_SINGLECELL);
-        
-        settings.add(SETTING_PAGEFILTERS, newFiltersArray);
+        settings.addProperty(SETTING_MIN_ROWS_PER_PAGE, (Integer) minRowsPerPageSelector.getSelectedItem());
+        settings.addProperty(SETTING_MIN_COLUMNS_PER_PAGE, (Integer) minColumnsPerPageSelector.getSelectedItem());
         settings.addProperty(SETTING_AUTOSIZE_COLUMNS, Boolean.valueOf(autosizeColumns.isSelected()));
         settings.addProperty(SETTING_PARALLEL_EXTRACTION, Boolean.valueOf(parallelCheckbox.isSelected()));
         
-        writeStringToFile(settingsPath, gson.toJson(settings));
+        try {
+            Files.writeString(settingsPath, gson.toJson(settings), WRITE, CREATE, TRUNCATE_EXISTING);
+        } catch (IOException e) {
+            System.out.println("Unable to write the settings file!");
+        }
     }
     
     
@@ -216,12 +194,18 @@ public final class Main {
         return checkbox;
     }
     
-    
-    private static void writeStringToFile(Path filePath, String content) {
-        try {
-            Files.writeString(filePath, content, WRITE, CREATE, TRUNCATE_EXISTING);
-        } catch (IOException e) {
-            System.out.println("Unable to write to file: " + filePath);
+    @SuppressWarnings("boxing")
+    @SafeVarargs
+    private static<T> JComboBox<T> newCombobox(int x, int y, int settingsValue, T... elements) {
+        var wombocombo = new JComboBox<>(elements);
+        wombocombo.setBounds(x, y, 100, 30);
+        
+        for(var i = 0; i < elements.length; ++i) {
+            if(elements[i].equals(settingsValue)) {
+                wombocombo.setSelectedIndex(i);
+                break;
+            }
         }
+        return wombocombo;
     }
 }
