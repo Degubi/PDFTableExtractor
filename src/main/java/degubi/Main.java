@@ -18,6 +18,7 @@ import technology.tabula.extractors.*;
 
 @SuppressWarnings("rawtypes")
 public final class Main {
+    public static final String VERSION = "1.0.0";
     public static final String SETTING_PARALLEL_EXTRACTION = "parallelExtraction";
     public static final String SETTING_MIN_ROWS_PER_PAGE = "minRowsPerPage";
     public static final String SETTING_MIN_COLUMNS_PER_PAGE = "minColumnsPerPage";
@@ -38,7 +39,7 @@ public final class Main {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
             } catch (Exception e) {}
             
-            var frame = new JFrame("Settings");
+            var frame = new JFrame("PDF To XLSX - " + VERSION);
             var panel = new JPanel(null);
             var oneThruTen = IntStream.rangeClosed(1, 10).boxed().toArray(Integer[]::new);
             var minRowsComboBox = newCombobox(200, 30, minRowsPerPage, oneThruTen);
@@ -63,6 +64,7 @@ public final class Main {
             
             Runtime.getRuntime().addShutdownHook(new Thread(() -> saveSettings(gson, settingsPath, settings, parallelCheckBox, autosizeCheckBox, minRowsComboBox, minColumnsComboBox)));
         }else{
+            System.out.println("Version: " + VERSION + '\n');
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
             
             var pdfSrc = parallelExtraction ? Arrays.stream(args).parallel()
