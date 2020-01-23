@@ -20,7 +20,7 @@ import technology.tabula.extractors.*;
 
 @SuppressWarnings("rawtypes")
 public final class Main {
-    public static final String VERSION = "1.1.0";
+    public static final String VERSION = "1.0.0";
     public static final String SETTING_PARALLEL_FILEPROCESS = "parallelFileProcess";
     public static final String SETTING_ROWS_PER_PAGE = "rowsPerPage";
     public static final String SETTING_ROW_COMPARISON_METHOD = "rowComparisonMethod";
@@ -61,7 +61,7 @@ public final class Main {
             var columnComparisonBox = newCombobox(160, 90, 100, comparisonMethods[columnComparisonMethod], comparisonMethods);
             var pageNamingComboBox = newCombobox(140, 170, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
             var autosizeCheckBox = newCheckbox(15, 210, "Autosize Columns After Extraction", autosizeColumns);
-            var parallelCheckBox = newCheckbox(15, 320, "Enable Parallel File Processing", parallelExtraction);
+            var parallelCheckBox = newCheckbox(15, 290, "Enable Parallel File Processing", parallelExtraction);
             
             addSettingsSection("Page Filters", 10, panel, bigBaldFont);
             panel.add(newLabel(20, 50, "Keep pages with rows:"));
