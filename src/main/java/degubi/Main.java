@@ -34,14 +34,14 @@ public final class Main {
         var gson = new GsonBuilder().setPrettyPrinting().create();
         var sourceDir = Path.of(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath().substring(1)).getParent().toString().replace("%20", " ");
         var settingsPath = Path.of(sourceDir + "/settings.json");
-        var settings = readSettings(settingsPath, gson);
-        var rowsPerPage = getIntSetting(SETTING_ROWS_PER_PAGE, 1, settings);
-        var rowComparisonMethod = getIntSetting(SETTING_ROW_COMPARISON_METHOD, 2, settings);
-        var columnsPerPage = getIntSetting(SETTING_COLUMNS_PER_PAGE, 1, settings);
-        var columnComparisonMethod = getIntSetting(SETTING_COLUMN_COMPARISON_METHOD, 2, settings);
-        var parallelExtraction = getBooleanSetting(SETTING_PARALLEL_FILEPROCESS, false, settings);
-        var autosizeColumns = getBooleanSetting(SETTING_AUTOSIZE_COLUMNS, true, settings);
-        var pageNamingMethod = getIntSetting(SETTING_PAGENAMING_METHOD, 0, settings);
+        var settingsObject = readSettings(settingsPath, gson);
+        var rowsPerPage = getIntSetting(SETTING_ROWS_PER_PAGE, 1, settingsObject);
+        var rowComparisonMethod = getIntSetting(SETTING_ROW_COMPARISON_METHOD, 2, settingsObject);
+        var columnsPerPage = getIntSetting(SETTING_COLUMNS_PER_PAGE, 1, settingsObject);
+        var columnComparisonMethod = getIntSetting(SETTING_COLUMN_COMPARISON_METHOD, 2, settingsObject);
+        var parallelExtraction = getBooleanSetting(SETTING_PARALLEL_FILEPROCESS, false, settingsObject);
+        var autosizeColumns = getBooleanSetting(SETTING_AUTOSIZE_COLUMNS, true, settingsObject);
+        var pageNamingMethod = getIntSetting(SETTING_PAGENAMING_METHOD, 0, settingsObject);
         
         if(args.length == 0) {
             try {
@@ -60,8 +60,8 @@ public final class Main {
             var columnsComboBox = newCombobox(320, 90, 50, columnsPerPage, oneThruTen);
             var columnComparisonBox = newCombobox(160, 90, 100, comparisonMethods[columnComparisonMethod], comparisonMethods);
             var pageNamingComboBox = newCombobox(140, 170, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
-            var parallelCheckBox = newCheckbox(15, 250, "Parallel File Processing", parallelExtraction);
-            var autosizeCheckBox = newCheckbox(15, 280, "Autosize Columns After Extraction", autosizeColumns);
+            var autosizeCheckBox = newCheckbox(15, 210, "Autosize Columns After Extraction", autosizeColumns);
+            var parallelCheckBox = newCheckbox(15, 320, "Enable Parallel File Processing", parallelExtraction);
             
             addSettingsSection("Page Filters", 10, panel, bigBaldFont);
             panel.add(newLabel(20, 50, "Keep pages with rows:"));
@@ -75,9 +75,9 @@ public final class Main {
             addSettingsSection("Page Settings", 130, panel, bigBaldFont);
             panel.add(newLabel(20, 170, "Page naming strategy: "));
             panel.add(pageNamingComboBox);
-            addSettingsSection("Other", 210, panel, bigBaldFont);
-            panel.add(parallelCheckBox);
             panel.add(autosizeCheckBox);
+            addSettingsSection("File Settings", 250, panel, bigBaldFont);
+            panel.add(parallelCheckBox);
             
             frame.setContentPane(panel);
             frame.setBounds(0, 0, 600, 500);
@@ -86,8 +86,9 @@ public final class Main {
             frame.setResizable(false);
             frame.setVisible(true);
             
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> saveSettings(gson, settingsPath, comparisonMethods, pageNamingMethods, parallelCheckBox, autosizeCheckBox,
-                                                                               rowsComboBox, columnsComboBox, rowComparisonBox, columnComparisonBox, pageNamingComboBox)));
+            Runtime.getRuntime()
+                   .addShutdownHook(new Thread(() -> saveSettings(gson, settingsPath, comparisonMethods, pageNamingMethods, parallelCheckBox, autosizeCheckBox,
+                                                                  rowsComboBox, columnsComboBox, rowComparisonBox, columnComparisonBox, pageNamingComboBox)));
         }else{
             System.out.println("Version: " + VERSION + '\n');
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
@@ -95,25 +96,22 @@ public final class Main {
             var rowComparisonFunction = getComparisonFunction(rowComparisonMethod, rowsPerPage);
             var columnComparisonFunction = getComparisonFunction(columnComparisonMethod, columnsPerPage);
             var pageNamingFunction = getPageNamingFunction(pageNamingMethod);
+            var textExtractor = new SpreadsheetExtractionAlgorithm();
             var pdfSrc = parallelExtraction ? Arrays.stream(args).parallel()
                                             : Arrays.stream(args);
             pdfSrc.map(Path::of)
                   .map(Path::toAbsolutePath)
                   .map(Path::toString)
                   .forEach(inputFile -> {
-                      var separatorIndex = inputFile.lastIndexOf('.');
-                      if(separatorIndex != -1 && !inputFile.substring(separatorIndex + 1).equals("pdf")) {
+                      System.out.println("Opening file: " + inputFile);
+                      
+                      if(!inputFile.endsWith(".pdf")) {
                           System.out.println(inputFile + " is not a pdf file");
                           return;
                       }
                       
-                      System.out.println("Reading file: " + inputFile);
-                      var filePath = inputFile.substring(0, separatorIndex);
-                      var outputFile = Path.of(filePath + ".xlsx");
-                      try(var pdfInput = PDDocument.load(new File(filePath + ".pdf"));
-                          var excelOutput = new XSSFWorkbook();
-                          var outputStream = Files.newOutputStream(outputFile, WRITE, CREATE, TRUNCATE_EXISTING)){
-                          var textExtractor = new SpreadsheetExtractionAlgorithm();
+                      try(var pdfInput = PDDocument.load(new File(inputFile));
+                          var excelOutput = new XSSFWorkbook()){
                           var counters = new int[2]; //0: PDF Page Counter, 1: Table per PDF Page Counter
                           
                           System.out.println("Extracting data from: " + inputFile);
@@ -124,17 +122,23 @@ public final class Main {
                                        .peek(k -> ++counters[1])
                                        .map(Table::getRows)
                                        .filter(tableData -> tableData.size() != 0 && rowComparisonFunction.test(tableData.size()) && columnComparisonFunction.test(tableData.get(0).size()))
-                                       .forEach(tableData -> storeTableData(excelOutput, tableData, autosizeColumns, pageNamingFunction, counters));
+                                       .forEach(tableData -> storeDataToPage(excelOutput, tableData, autosizeColumns, pageNamingFunction, counters));
                           
                           var numberOfSheets = excelOutput.getNumberOfSheets();
                           if(numberOfSheets > 0) {
+                              var separatorIndex = inputFile.lastIndexOf('.');
+                              var filePath = inputFile.substring(0, separatorIndex);
+                              var outputFile = Path.of(filePath + ".xlsx");
                               System.out.println("Writing " + numberOfSheets + " pages to file: " + outputFile);
-                              excelOutput.write(outputStream);
+                              
+                              try(var outputStream = Files.newOutputStream(outputFile, WRITE, CREATE, TRUNCATE_EXISTING)){
+                                  excelOutput.write(outputStream);
+                              }
+                              
+                              System.out.println("Finished: " + outputFile + '\n');
                           }else{
-                              System.out.println("WARNING: No pages were written to file: " + outputFile);
+                              System.out.println("No pages were extracted from file: " + inputFile);
                           }
-                          
-                          System.out.println("Finished: " + outputFile + '\n');
                       }catch(Exception e) {
                           System.out.println("An error happened, check error.txt for details");
                           
@@ -149,13 +153,13 @@ public final class Main {
         }
     }
     
-    private static void storeTableData(XSSFWorkbook excelOutput, List<List<RectangularTextContainer>> tableData, boolean autosizeColumns,
-                                       BiFunction<XSSFWorkbook, int[], String> pageNamingFunction, int[] counters) {
+    private static void storeDataToPage(XSSFWorkbook excelOutput, List<List<RectangularTextContainer>> tableData, boolean autosizeColumns,
+                                        BiFunction<XSSFWorkbook, int[], String> pageNamingFunction, int[] counters) {
         
         var pageSheet = excelOutput.createSheet(pageNamingFunction.apply(excelOutput, counters));
         
         IntStream.range(0, tableData.size())
-                 .forEach(rowIndex -> fillWithData(tableData, pageSheet, rowIndex));
+                 .forEach(rowIndex -> fillRowWithData(tableData, pageSheet, rowIndex));
         
         if(autosizeColumns) {
             IntStream.range(0, pageSheet.getRow(0).getPhysicalNumberOfCells())
@@ -165,7 +169,7 @@ public final class Main {
         pageSheet.setActiveCell(new CellAddress(0, 0));
     }
     
-    private static void fillWithData(List<List<RectangularTextContainer>> tableData, XSSFSheet pageSheet, int rowIndex) {
+    private static void fillRowWithData(List<List<RectangularTextContainer>> tableData, XSSFSheet pageSheet, int rowIndex) {
         var excelRow = pageSheet.createRow(rowIndex);
         
         IntStream.range(0, tableData.get(rowIndex).size())
@@ -176,29 +180,27 @@ public final class Main {
     }
     
     
-    private static boolean getBooleanSetting(String setting, boolean defaultValue, JsonObject settings) {
-        if(settings.has(setting)) {
-            return settings.get(setting).getAsBoolean();
+    private static boolean getBooleanSetting(String setting, boolean defaultValue, JsonObject settingsObject) {
+        if(settingsObject.has(setting)) {
+            return settingsObject.get(setting).getAsBoolean();
         }
         
-        settings.addProperty(setting, Boolean.valueOf(defaultValue));
+        settingsObject.addProperty(setting, Boolean.valueOf(defaultValue));
         return defaultValue;
     }
     
-    private static int getIntSetting(String setting, int defaultValue, JsonObject settings) {
-        if(settings.has(setting)) {
-            return settings.get(setting).getAsInt();
+    private static int getIntSetting(String setting, int defaultValue, JsonObject settingsObject) {
+        if(settingsObject.has(setting)) {
+            return settingsObject.get(setting).getAsInt();
         }
         
-        settings.addProperty(setting, Integer.valueOf(defaultValue));
+        settingsObject.addProperty(setting, Integer.valueOf(defaultValue));
         return defaultValue;
     }
     
     private static JsonObject readSettings(Path settingsPath, Gson gson) {
         try {
-            var settingsStr = Files.readString(settingsPath);
-            
-            return gson.fromJson(settingsStr, JsonObject.class);
+            return gson.fromJson(Files.readString(settingsPath), JsonObject.class);
         } catch (IOException e) {
             return new JsonObject();
         }
