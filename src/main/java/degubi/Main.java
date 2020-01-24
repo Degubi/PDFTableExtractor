@@ -9,7 +9,6 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.List;
-import java.util.function.*;
 import java.util.stream.*;
 import javax.swing.*;
 import org.apache.pdfbox.pdmodel.*;
@@ -28,8 +27,9 @@ public final class Main {
     public static final String SETTING_COLUMN_COMPARISON_METHOD = "columnComparisonMethod";
     public static final String SETTING_AUTOSIZE_COLUMNS = "autosizeColumns";
     public static final String SETTING_PAGENAMING_METHOD = "pageNamingMethod";
+    public static final String SETTING_EMPTY_COLUMN_SKIP_METHOD = "emptyColumnSkipMethod";
     
-    @SuppressWarnings("boxing")
+    @SuppressWarnings({ "boxing", "unchecked" })
     public static void main(String[] args) {
         var gson = new GsonBuilder().setPrettyPrinting().create();
         var sourceDir = Path.of(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath().substring(1)).getParent().toString().replace("%20", " ");
@@ -42,6 +42,7 @@ public final class Main {
         var parallelExtraction = getBooleanSetting(SETTING_PARALLEL_FILEPROCESS, false, settingsObject);
         var autosizeColumns = getBooleanSetting(SETTING_AUTOSIZE_COLUMNS, true, settingsObject);
         var pageNamingMethod = getIntSetting(SETTING_PAGENAMING_METHOD, 0, settingsObject);
+        var emptyColumnSkipMethod = getIntSetting(SETTING_EMPTY_COLUMN_SKIP_METHOD, 0, settingsObject);
         
         if(args.length == 0) {
             try {
@@ -52,16 +53,17 @@ public final class Main {
             var panel = new JPanel(null);
             var bigBaldFont = new Font("SansSerif", Font.BOLD, 20);
             var oneThruTen = IntStream.rangeClosed(1, 10).boxed().toArray(Integer[]::new);
-            
             var comparisonMethods = new String[] {"less/equal", "equal", "greater/equal"};
             var pageNamingMethods = new String[] {"counting", "pageOrdinal-tableOrdinal"};
+            var emptyColumnSkipGroup = new ButtonGroup();
+            
             var rowsComboBox = newCombobox(320, 50, 50, rowsPerPage, oneThruTen);
             var rowComparisonBox = newCombobox(160, 50, 100, comparisonMethods[rowComparisonMethod], comparisonMethods);
             var columnsComboBox = newCombobox(320, 90, 50, columnsPerPage, oneThruTen);
             var columnComparisonBox = newCombobox(160, 90, 100, comparisonMethods[columnComparisonMethod], comparisonMethods);
-            var pageNamingComboBox = newCombobox(140, 170, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
-            var autosizeCheckBox = newCheckbox(15, 210, "Autosize Columns After Extraction", autosizeColumns);
-            var parallelCheckBox = newCheckbox(15, 290, "Enable Parallel File Processing", parallelExtraction);
+            var pageNamingComboBox = newCombobox(140, 210, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
+            var autosizeCheckBox = newCheckbox(15, 250, "Autosize Columns After Extraction", autosizeColumns);
+            var parallelCheckBox = newCheckbox(15, 330, "Enable Parallel File Processing", parallelExtraction);
             
             addSettingsSection("Page Filters", 10, panel, bigBaldFont);
             panel.add(newLabel(20, 50, "Keep pages with rows:"));
@@ -72,11 +74,16 @@ public final class Main {
             panel.add(columnsComboBox);
             panel.add(newLabel(270, 90, "than/to"));
             panel.add(columnComparisonBox);
-            addSettingsSection("Page Settings", 130, panel, bigBaldFont);
-            panel.add(newLabel(20, 170, "Page naming strategy: "));
+            panel.add(newLabel(20, 130, "Skip empty columns:"));
+            panel.add(newRadioButton(155, 130, 50, "None", 0, emptyColumnSkipMethod == 0, emptyColumnSkipGroup));
+            panel.add(newRadioButton(220, 130, 65, "Leading", 1, emptyColumnSkipMethod == 1, emptyColumnSkipGroup));
+            panel.add(newRadioButton(300, 130, 60, "Trailing", 2, emptyColumnSkipMethod == 2, emptyColumnSkipGroup));
+            panel.add(newRadioButton(380, 130, 55, "Both", 3, emptyColumnSkipMethod == 3, emptyColumnSkipGroup));
+            addSettingsSection("Page Settings", 170, panel, bigBaldFont);
+            panel.add(newLabel(20, 210, "Page naming strategy: "));
             panel.add(pageNamingComboBox);
             panel.add(autosizeCheckBox);
-            addSettingsSection("File Settings", 250, panel, bigBaldFont);
+            addSettingsSection("File Settings", 290, panel, bigBaldFont);
             panel.add(parallelCheckBox);
             
             frame.setContentPane(panel);
@@ -93,9 +100,7 @@ public final class Main {
             System.out.println("Version: " + VERSION + '\n');
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
             
-            var rowComparisonFunction = getComparisonFunction(rowComparisonMethod, rowsPerPage);
-            var columnComparisonFunction = getComparisonFunction(columnComparisonMethod, columnsPerPage);
-            var pageNamingFunction = getPageNamingFunction(pageNamingMethod);
+            var extractionFunctions = new PageExtractionFunctions(rowComparisonMethod, rowsPerPage, columnComparisonMethod, columnsPerPage, pageNamingMethod);
             var textExtractor = new SpreadsheetExtractionAlgorithm();
             var pdfSrc = parallelExtraction ? Arrays.stream(args).parallel()
                                             : Arrays.stream(args);
@@ -112,17 +117,14 @@ public final class Main {
                       
                       try(var pdfInput = PDDocument.load(new File(inputFile));
                           var excelOutput = new XSSFWorkbook()){
-                          var counters = new int[2]; //0: PDF Page Counter, 1: Table per PDF Page Counter
                           
                           System.out.println("Extracting data from: " + inputFile);
-                          StreamSupport.stream(Spliterators.spliteratorUnknownSize(new ObjectExtractor(pdfInput).extract(), ORDERED | IMMUTABLE), false)
-                                       .map(textExtractor::extract)
-                                       .peek(k -> ++counters[0])
-                                       .flatMap(List::stream)
-                                       .peek(k -> ++counters[1])
-                                       .map(Table::getRows)
-                                       .filter(tableData -> tableData.size() != 0 && rowComparisonFunction.test(tableData.size()) && columnComparisonFunction.test(tableData.get(0).size()))
-                                       .forEach(tableData -> storeDataToPage(excelOutput, tableData, autosizeColumns, pageNamingFunction, counters));
+                          var extractedPages = StreamSupport.stream(Spliterators.spliteratorUnknownSize(new ObjectExtractor(pdfInput).extract(), ORDERED | IMMUTABLE), false)
+                                                            .map(textExtractor::extract)
+                                                            .toArray(List[]::new);
+                          
+                          IntStream.range(0, extractedPages.length)
+                                   .forEach(pageIndex -> extractTablesFromPage(autosizeColumns, extractionFunctions, excelOutput, extractedPages, pageIndex));
                           
                           var numberOfSheets = excelOutput.getNumberOfSheets();
                           if(numberOfSheets > 0) {
@@ -152,21 +154,31 @@ public final class Main {
             System.console().readLine();
         }
     }
-    
-    private static void storeDataToPage(XSSFWorkbook excelOutput, List<List<RectangularTextContainer>> tableData, boolean autosizeColumns,
-                                        BiFunction<XSSFWorkbook, int[], String> pageNamingFunction, int[] counters) {
+
+    private static void extractTablesFromPage(boolean autosizeColumns, PageExtractionFunctions extractionFunctions, XSSFWorkbook excelOutput, List<Table>[] extractedPages, int pageIndex) {
+        var tables = extractedPages[pageIndex];
+        var rowComparisonFunction = extractionFunctions.rowComparisonFunction;
+        var columnComparisonFunction = extractionFunctions.columnComparisonFunction;
+        var pageNamingFunction = extractionFunctions.pageNamingFunction;
         
-        var pageSheet = excelOutput.createSheet(pageNamingFunction.apply(excelOutput, counters));
-        
-        IntStream.range(0, tableData.size())
-                 .forEach(rowIndex -> fillRowWithData(tableData, pageSheet, rowIndex));
-        
-        if(autosizeColumns) {
-            IntStream.range(0, pageSheet.getRow(0).getPhysicalNumberOfCells())
-                     .forEach(pageSheet::autoSizeColumn);
-        }
-        
-        pageSheet.setActiveCell(new CellAddress(0, 0));
+        IntStream.range(0, tables.size())
+                 .forEach(tableIndex -> {
+                     var rows = tables.get(tableIndex).getRows();
+                     
+                     if(rows.size() != 0 && rowComparisonFunction.test(rows.size()) && columnComparisonFunction.test(rows.get(0).size())) {
+                         var pageSheet = excelOutput.createSheet(pageNamingFunction.apply(excelOutput, pageIndex, tableIndex));
+                         
+                         IntStream.range(0, rows.size())
+                                  .forEach(rowIndex -> fillRowWithData(rows, pageSheet, rowIndex));
+                         
+                         if(autosizeColumns) {
+                             IntStream.range(0, pageSheet.getRow(0).getPhysicalNumberOfCells())
+                                      .forEach(pageSheet::autoSizeColumn);
+                         }
+                         
+                         pageSheet.setActiveCell(new CellAddress(0, 0));
+                     }
+                 });
     }
     
     private static void fillRowWithData(List<List<RectangularTextContainer>> tableData, XSSFSheet pageSheet, int rowIndex) {
@@ -241,6 +253,15 @@ public final class Main {
         return checkbox;
     }
     
+    private static JRadioButton newRadioButton(int x, int y, int width, String text, int index, boolean selected, ButtonGroup group) {
+        var radioButt = new JRadioButton(text, selected);
+        radioButt.setBounds(x, y, width, 30);
+        radioButt.setMnemonic(index);
+        radioButt.setFocusPainted(false);
+        group.add(radioButt);
+        return radioButt;
+    }
+    
     @SafeVarargs
     private static<T> JComboBox<T> newCombobox(int x, int y, int width, T settingsValue, T... elements) {
         var wombocombo = new JComboBox<>(elements);
@@ -265,17 +286,6 @@ public final class Main {
         contentPanel.add(separatorBottom);
     }
     
-    
-    private static BiFunction<XSSFWorkbook, int[], String> getPageNamingFunction(int namingMethod) {
-        return namingMethod == 0 ? (workbook, counters) -> (workbook.getNumberOfSheets() + 1) + "."
-                                 : (workbook, counters) -> counters[0] + ". Page " + counters[1] + ". Table";
-    }
-    
-    private static IntPredicate getComparisonFunction(int comparisonMethod, int value) {
-        return comparisonMethod == 0 ? k -> k <= value :
-               comparisonMethod == 1 ? k -> k == value :
-                                       k -> k >= value;
-    }
     
     private static<T> int indexOf(T element, T[] array) {
         for(var i = 0; i < array.length; ++i) {
