@@ -9,4 +9,4 @@
  - Need JDK 13+ installed
  - Need Python installed
  - Run build.py
- - PDFToXLSX folder is built as in the release zip files
+ - PDFTableExtractor folder is built as in the release zip files

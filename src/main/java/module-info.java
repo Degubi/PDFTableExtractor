@@ -1,4 +1,4 @@
-module degubi.pdftoxlsx {
+module degubi.pdftableextractor {
     requires java.desktop;
     requires java.sql;
     

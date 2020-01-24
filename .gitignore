@@ -1,5 +1,5 @@
 /target/
-/PDFToXLSX/
+/PDFTableExtractor/
 .settings
 *.pdf
 *.xlsx
