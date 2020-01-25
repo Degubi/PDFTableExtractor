@@ -8,15 +8,15 @@
 ### Settings:
  <img src = images/settings.jpg width = 450 height = 375/>
  
- - Keep pages with rows/columns: Skip exporting all pages/sheets that doesn't meet the criteria
- - Skip empty columns: Different options for choosing column skipping methods
- - Page naming strategy: How to name pages/sheets in the excel file
- - Autosize columns: Resizes created columns before saving
- - Parallel file processing: Enables processing multiple pdf-s at the same time
+ - <ins>Keep pages with rows/columns</ins>: Skip exporting all pages/sheets that doesn't meet the criteria
+ - <ins>Skip empty columns</ins>: Different options for choosing column skipping methods
+ - <ins>Page naming strategy</ins>: How to name pages/sheets in the excel file
+ - <ins>Autosize columns</ins>: Resizes created columns before saving
+ - <ins>Parallel file processing</ins>: Enables processing multiple pdf-s at the same time
 
 ### Building:
  - Need JDK 13+ installed
  - Need Python installed
  - Run ExportLibraries.launch in eclipse or run 'mvn dependency:copy-dependencies -DoutputDirectory=${project.build.directory}/lib'
  - Run build.py
- - PDFTableExtractor folder is built as in the release zip files
+ - PDFTableExtractor.zip is built
