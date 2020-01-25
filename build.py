@@ -5,7 +5,7 @@ from os import remove, rename
 jlinkCommand = (r"jlink --output ./PDFTableExtractor/ "
                  "--no-man-pages "
                  "--no-header-files "
-                 "--add-modules java.base,java.desktop,java.sql "
+                 "--add-modules java.base,java.desktop,java.sql,java.net.http,jdk.crypto.ec "
                  "--compress=2")
 
 print("Generating runtime")

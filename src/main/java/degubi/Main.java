@@ -7,9 +7,14 @@ import static java.util.stream.IntStream.*;
 import com.google.gson.*;
 import java.awt.*;
 import java.io.*;
+import java.net.*;
+import java.net.http.*;
+import java.net.http.HttpResponse.*;
 import java.nio.file.*;
+import java.time.*;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.stream.*;
 import javax.swing.*;
@@ -33,6 +38,7 @@ public final class Main {
     @SuppressWarnings("boxing")
     public static void main(String[] args) throws ClassNotFoundException, InstantiationException, IllegalAccessException, UnsupportedLookAndFeelException {
         var gson = new GsonBuilder().setPrettyPrinting().create();
+        var versionCheckResult = CompletableFuture.supplyAsync(() -> createVersionCheckingTask(gson));
         var sourceDir = Path.of(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath().substring(1)).getParent().toString().replace("%20", " ");
         var settingsPath = Path.of(sourceDir + "/settings.json");
         var settingsObject = readSettings(settingsPath, gson);
@@ -97,7 +103,6 @@ public final class Main {
                    .addShutdownHook(new Thread(() -> saveSettings(gson, settingsPath, comparisonMethods, pageNamingMethods, parallelCheckBox, autosizeCheckBox,
                                                                   rowsComboBox, columnsComboBox, rowComparisonBox, columnComparisonBox, pageNamingComboBox, emptyColumnSkipGroup)));
         }else{
-            System.out.println("Version: " + VERSION + '\n');
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
             
             var rowComparisonFunction = getComparisonFunction(rowComparisonMethod, rowsPerPage);
@@ -146,6 +151,10 @@ public final class Main {
                           } catch (FileNotFoundException e1) {}
                       }
                   });
+            
+            try {
+                System.out.println(versionCheckResult.get());
+            } catch (InterruptedException | ExecutionException e) {}
             
             System.out.print("All done, press enter");
             System.console().readLine();
@@ -313,6 +322,26 @@ public final class Main {
         return comparisonMethod == 0 ? k -> k <= value :
                comparisonMethod == 1 ? k -> k == value :
                                        k -> k >= value;
+    }
+    
+    private static String createVersionCheckingTask(Gson gson) {
+        var client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        var request = HttpRequest.newBuilder()
+                                 .uri(URI.create("https://api.github.com/repos/Degubi/PDFTableExtractor/releases/latest"))
+                                 .build();
+        try {
+            var rawResponse = client.send(request, BodyHandlers.ofString()).body();
+            var parsedResponse = gson.fromJson(rawResponse, JsonObject.class);
+            var remoteVersion = parsedResponse.get("tag_name").getAsString();
+            
+            if(remoteVersion.equals(VERSION)) {
+                return "Local app version: " + VERSION + " is up to date!";
+            }
+            
+            return "Local app version: " + VERSION + " is out of date! Remote app version: " + remoteVersion + "Check https://github.com/Degubi/PDFTableExtractor for new release!";
+        } catch (Exception e) {
+            return "Unable to get app version from repository: https://github.com/Degubi/PDFTableExtractor";
+        }
     }
     
     private static<T> int indexOf(T element, T[] array) {
