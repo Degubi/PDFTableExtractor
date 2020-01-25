@@ -17,5 +17,6 @@
 ### Building:
  - Need JDK 13+ installed
  - Need Python installed
+ - Run ExportLibraries.launch in eclipse or run 'mvn dependency:copy-dependencies -DoutputDirectory=${project.build.directory}/lib'
  - Run build.py
  - PDFTableExtractor folder is built as in the release zip files

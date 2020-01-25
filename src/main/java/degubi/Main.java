@@ -30,7 +30,7 @@ public final class Main {
     public static final String SETTING_PAGENAMING_METHOD = "pageNamingMethod";
     public static final String SETTING_EMPTY_COLUMN_SKIP_METHOD = "emptyColumnSkipMethod";
     
-    @SuppressWarnings({ "boxing", "unchecked" })
+    @SuppressWarnings("boxing")
     public static void main(String[] args) throws ClassNotFoundException, InstantiationException, IllegalAccessException, UnsupportedLookAndFeelException {
         var gson = new GsonBuilder().setPrettyPrinting().create();
         var sourceDir = Path.of(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath().substring(1)).getParent().toString().replace("%20", " ");
@@ -85,7 +85,7 @@ public final class Main {
             addSettingsSection("File Settings", 290, panel, bigBaldFont);
             panel.add(parallelCheckBox);
             
-            var frame = new JFrame("PDF To XLSX - " + VERSION);
+            var frame = new JFrame("PDF Table Extractor - " + VERSION);
             frame.setContentPane(panel);
             frame.setBounds(0, 0, 600, 500);
             frame.setLocationRelativeTo(null);
@@ -121,13 +121,7 @@ public final class Main {
                           var excelOutput = new XSSFWorkbook()){
                           
                           System.out.println("Extracting data from: " + inputFile);
-                          var extractedPages = StreamSupport.stream(Spliterators.spliteratorUnknownSize(new ObjectExtractor(pdfInput).extract(), ORDERED | IMMUTABLE), false)
-                                                            .map(textExtractor::extract)
-                                                            .toArray(List[]::new);
-                          
-                          range(0, extractedPages.length)
-                         .forEach(pageIndex -> extractTablesFromPage(autosizeColumns, excelOutput, extractedPages, pageIndex, emptyColumnSkipMethod, 
-                                                                     rowComparisonFunction, columnComparisonFunction, pageNamingFunction));
+                          extractPDF(autosizeColumns, emptyColumnSkipMethod, rowComparisonFunction, columnComparisonFunction, pageNamingFunction, pdfInput, excelOutput, textExtractor);
                           
                           var numberOfSheets = excelOutput.getNumberOfSheets();
                           if(numberOfSheets > 0) {
@@ -158,42 +152,52 @@ public final class Main {
         }
     }
 
-    private static void extractTablesFromPage(boolean autosizeColumns, XSSFWorkbook excelOutput, List<Table>[] extractedPages, int pageIndex, int emptyColumnSkipMethod,
-                                              IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction, PageNamingFunction pageNamingFunction) {
+    @SuppressWarnings({ "unchecked", "cast" })
+    public static void extractPDF(boolean autosizeColumns, int emptyColumnSkipMethod, IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction,
+                                  PageNamingFunction pageNamingFunction, PDDocument pdfInput, XSSFWorkbook excelOutput, SpreadsheetExtractionAlgorithm textExtractor) {
         
-        var tables = extractedPages[pageIndex];
+        var rawPages = StreamSupport.stream(Spliterators.spliteratorUnknownSize(new ObjectExtractor(pdfInput).extract(), ORDERED | IMMUTABLE), false)
+                                    .map(textExtractor::extract)
+                                    .toArray(List[]::new);
         
-        range(0, tables.size()).forEach(tableIndex -> {
-           var rawRows = tables.get(tableIndex).getRows();
+        var extractedPages = (List<Table>[]) rawPages;
+          
+        range(0, extractedPages.length)
+       .forEach(pageIndex -> {
+           var tables = extractedPages[pageIndex];
            
-           if(rawRows.size() > 0) {
-               var rows = rawRows.stream()
-                                 .map(k -> k.stream().map(RectangularTextContainer::getText).toArray(String[]::new))
-                                 .toArray(String[][]::new);
+           range(0, tables.size()).forEach(tableIndex -> {
+               var rawRows = tables.get(tableIndex).getRows();
                
-               var removableRowCountFromStart = (emptyColumnSkipMethod & 1) == 0 ? 0 : calculateRemovableRowCount(rows, (k, i) -> k[i]);
-               var removableRowCountFromEnd = (emptyColumnSkipMethod & 2) == 0 ? 0 : calculateRemovableRowCount(rows, (k, i) -> k[k.length - 1 - i]);
-               
-               if(rowComparisonFunction.test(rows.length) && columnComparisonFunction.test(rows[0].length - removableRowCountFromStart - removableRowCountFromEnd)) {
-                   var pageSheet = excelOutput.createSheet(pageNamingFunction.apply(excelOutput, pageIndex, tableIndex));
+               if(rawRows.size() > 0) {
+                   var rows = rawRows.stream()
+                                     .map(k -> k.stream().map(RectangularTextContainer::getText).toArray(String[]::new))
+                                     .toArray(String[][]::new);
                    
-                   range(0, rows.length).forEach(rowIndex -> {
-                      var excelRow = pageSheet.createRow(rowIndex);
-                      
-                      range(removableRowCountFromStart, rows[rowIndex].length - removableRowCountFromEnd)
-                     .forEach(columnIndex -> excelRow.createCell(columnIndex).setCellValue(rows[rowIndex][columnIndex]));
-                   });
+                   var removableRowCountFromStart = (emptyColumnSkipMethod & 1) == 0 ? 0 : calculateRemovableRowCount(rows, (k, i) -> k[i]);
+                   var removableRowCountFromEnd = (emptyColumnSkipMethod & 2) == 0 ? 0 : calculateRemovableRowCount(rows, (k, i) -> k[k.length - 1 - i]);
                    
-                   if(autosizeColumns) {
-                       range(0, pageSheet.getRow(0).getPhysicalNumberOfCells()).forEach(pageSheet::autoSizeColumn);
+                   if(rowComparisonFunction.test(rows.length) && columnComparisonFunction.test(rows[0].length - removableRowCountFromStart - removableRowCountFromEnd)) {
+                       var pageSheet = excelOutput.createSheet(pageNamingFunction.apply(excelOutput, pageIndex, tableIndex));
+                       
+                       range(0, rows.length).forEach(rowIndex -> {
+                           var excelRow = pageSheet.createRow(rowIndex);
+                           
+                           range(removableRowCountFromStart, rows[rowIndex].length - removableRowCountFromEnd)
+                          .forEach(columnIndex -> excelRow.createCell(columnIndex).setCellValue(rows[rowIndex][columnIndex]));
+                       });
+                       
+                       if(autosizeColumns) {
+                           range(0, pageSheet.getRow(0).getPhysicalNumberOfCells()).forEach(pageSheet::autoSizeColumn);
+                       }
+                       
+                       pageSheet.setActiveCell(CellAddress.A1);
                    }
-                   
-                   pageSheet.setActiveCell(CellAddress.A1);
                }
-           }
+           });
        });
     }
-    
+
     private static int calculateRemovableRowCount(String[][] rows, ArrayIntFunction<String> elementProviderFunction) {
         return Arrays.stream(rows)
                      .mapToInt(k -> range(0, k.length).takeWhile(i -> elementProviderFunction.apply(k, i).isBlank()).map(i -> 1).sum())
@@ -298,12 +302,14 @@ public final class Main {
     }
     
     
-    private static PageNamingFunction getPageNamingFunction(int namingMethod) {
+    //0: Counting, 1: PageOrdinal+TableOrdinal
+    public static PageNamingFunction getPageNamingFunction(int namingMethod) {
         return namingMethod == 0 ? (workbook, pageIndex, tableIndex) -> (workbook.getNumberOfSheets() + 1) + "."
                                  : (workbook, pageIndex, tableIndex) -> (pageIndex + 1) + ". Page " + (tableIndex + 1) + ". Table";
     }
     
-    private static IntPredicate getComparisonFunction(int comparisonMethod, int value) {
+    //0: Less/equal, 1: equal, 2: greater/equal
+    public static IntPredicate getComparisonFunction(int comparisonMethod, int value) {
         return comparisonMethod == 0 ? k -> k <= value :
                comparisonMethod == 1 ? k -> k == value :
                                        k -> k >= value;
@@ -316,5 +322,13 @@ public final class Main {
             }
         }
         return -1;
+    }
+    
+    public interface ArrayIntFunction<T>{
+        T apply(T[] array, int k);
+    }
+    
+    public interface PageNamingFunction {
+        String apply(XSSFWorkbook workbook, int pageIndex, int tableIndex);
     }
 }
