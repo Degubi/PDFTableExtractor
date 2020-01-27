@@ -1,5 +1,7 @@
 package degubi;
 
+import static degubi.Main.RowProviderFunction.*;
+import static degubi.Main.RowWalkerFunction.*;
 import static java.nio.file.StandardOpenOption.*;
 import static java.util.Spliterator.*;
 import static java.util.stream.IntStream.*;
@@ -34,6 +36,7 @@ public final class Main {
     public static final String SETTING_AUTOSIZE_COLUMNS = "autosizeColumns";
     public static final String SETTING_PAGENAMING_METHOD = "pageNamingMethod";
     public static final String SETTING_EMPTY_COLUMN_SKIP_METHOD = "emptyColumnSkipMethod";
+    public static final String SETTING_EMPTY_ROW_SKIP_METHOD = "emptyRowSkipMethod";
     
     @SuppressWarnings("boxing")
     public static void main(String[] args) throws ClassNotFoundException, InstantiationException, IllegalAccessException, UnsupportedLookAndFeelException {
@@ -50,6 +53,7 @@ public final class Main {
         var autosizeColumns = getBooleanSetting(SETTING_AUTOSIZE_COLUMNS, true, settingsObject);
         var pageNamingMethod = getIntSetting(SETTING_PAGENAMING_METHOD, 0, settingsObject);
         var emptyColumnSkipMethod = getIntSetting(SETTING_EMPTY_COLUMN_SKIP_METHOD, 0, settingsObject);
+        var emptyRowSkipMethod = getIntSetting(SETTING_EMPTY_ROW_SKIP_METHOD, 0, settingsObject);
         
         if(args.length == 0) {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
@@ -62,14 +66,15 @@ public final class Main {
             var rowComparisonBox = newComboBox(160, 50, 100, comparisonMethods[rowComparisonMethod], comparisonMethods);
             var columnsComboBox = newComboBox(320, 90, 50, columnsPerPage, oneThruTen);
             var columnComparisonBox = newComboBox(160, 90, 100, comparisonMethods[columnComparisonMethod], comparisonMethods);
-            var pageNamingComboBox = newComboBox(140, 210, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
-            var autosizeCheckBox = newCheckBox(15, 250, "Autosize Columns After Extraction", autosizeColumns);
-            var parallelCheckBox = newCheckBox(15, 330, "Enable Parallel File Processing", parallelExtraction);
+            var pageNamingComboBox = newComboBox(140, 240, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
+            var autosizeCheckBox = newCheckBox(15, 280, "Autosize Columns After Extraction", autosizeColumns);
+            var parallelCheckBox = newCheckBox(15, 360, "Enable Parallel File Processing", parallelExtraction);
             
             var panel = new JPanel(null);
             var bigBaldFont = new Font("SansSerif", Font.BOLD, 20);
             var emptyColumnSkipGroup = new ButtonGroup();
-            
+            var emptyRowSkipGroup = new ButtonGroup();
+
             addSettingsSection("Page Filters", 10, panel, bigBaldFont);
             panel.add(newLabel(20, 50, "Keep pages with rows:"));
             panel.add(rowsComboBox);
@@ -79,16 +84,21 @@ public final class Main {
             panel.add(columnsComboBox);
             panel.add(newLabel(270, 90, "than/to"));
             panel.add(columnComparisonBox);
-            panel.add(newLabel(20, 130, "Skip empty columns:"));
-            panel.add(newRadioButton(155, 130, 50, "None", 0, emptyColumnSkipMethod == 0, emptyColumnSkipGroup));
-            panel.add(newRadioButton(220, 130, 65, "Leading", 1, emptyColumnSkipMethod == 1, emptyColumnSkipGroup));
-            panel.add(newRadioButton(300, 130, 60, "Trailing", 2, emptyColumnSkipMethod == 2, emptyColumnSkipGroup));
-            panel.add(newRadioButton(380, 130, 55, "Both", 3, emptyColumnSkipMethod == 3, emptyColumnSkipGroup));
-            addSettingsSection("Page Settings", 170, panel, bigBaldFont);
-            panel.add(newLabel(20, 210, "Page naming strategy: "));
+            panel.add(newLabel(20, 130, "Skip empty rows:"));
+            panel.add(newRadioButton(155, 130, 50, "None", 0, emptyRowSkipMethod == 0, emptyRowSkipGroup));
+            panel.add(newRadioButton(220, 130, 65, "Leading", 1, emptyRowSkipMethod == 1, emptyRowSkipGroup));
+            panel.add(newRadioButton(300, 130, 60, "Trailing", 2, emptyRowSkipMethod == 2, emptyRowSkipGroup));
+            panel.add(newRadioButton(380, 130, 55, "Both", 3, emptyRowSkipMethod == 3, emptyRowSkipGroup));
+            panel.add(newLabel(20, 160, "Skip empty columns:"));
+            panel.add(newRadioButton(155, 160, 50, "None", 0, emptyColumnSkipMethod == 0, emptyColumnSkipGroup));
+            panel.add(newRadioButton(220, 160, 65, "Leading", 1, emptyColumnSkipMethod == 1, emptyColumnSkipGroup));
+            panel.add(newRadioButton(300, 160, 60, "Trailing", 2, emptyColumnSkipMethod == 2, emptyColumnSkipGroup));
+            panel.add(newRadioButton(380, 160, 55, "Both", 3, emptyColumnSkipMethod == 3, emptyColumnSkipGroup));
+            addSettingsSection("Page Settings", 200, panel, bigBaldFont);
+            panel.add(newLabel(20, 240, "Page naming strategy: "));
             panel.add(pageNamingComboBox);
             panel.add(autosizeCheckBox);
-            addSettingsSection("File Settings", 290, panel, bigBaldFont);
+            addSettingsSection("File Settings", 320, panel, bigBaldFont);
             panel.add(parallelCheckBox);
             
             var frame = new JFrame("PDF Table Extractor - " + VERSION);
@@ -126,7 +136,7 @@ public final class Main {
                           var excelOutput = new XSSFWorkbook()){
                           
                           System.out.println("Extracting data from: " + inputFile);
-                          extractPDF(autosizeColumns, emptyColumnSkipMethod, rowComparisonFunction, columnComparisonFunction, pageNamingFunction, pdfInput, excelOutput, textExtractor);
+                          extractPDF(autosizeColumns, emptyColumnSkipMethod, emptyRowSkipMethod, rowComparisonFunction, columnComparisonFunction, pageNamingFunction, pdfInput, excelOutput, textExtractor);
                           
                           var numberOfSheets = excelOutput.getNumberOfSheets();
                           if(numberOfSheets > 0) {
@@ -161,15 +171,15 @@ public final class Main {
         }
     }
 
-    @SuppressWarnings({ "unchecked", "cast" })
-    public static void extractPDF(boolean autosizeColumns, int emptyColumnSkipMethod, IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction,
+    @SuppressWarnings({"unchecked", "cast"})
+    public static void extractPDF(boolean autosizeColumns, int emptyColumnSkipMethod, int emptyRowSkipMethod, IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction,
                                   PageNamingFunction pageNamingFunction, PDDocument pdfInput, XSSFWorkbook excelOutput, SpreadsheetExtractionAlgorithm textExtractor) {
         
         var rawPages = StreamSupport.stream(Spliterators.spliteratorUnknownSize(new ObjectExtractor(pdfInput).extract(), ORDERED | IMMUTABLE), false)
                                     .map(textExtractor::extract)
                                     .toArray(List[]::new);
         
-        var extractedPages = (List<Table>[]) rawPages;
+        var extractedPages = (List<Table>[]) rawPages;   //Gotta love Java's non generic arrays, 'rawPages' and this cast is fine
           
         range(0, extractedPages.length)
        .forEach(pageIndex -> {
@@ -183,16 +193,20 @@ public final class Main {
                                      .map(k -> k.stream().map(RectangularTextContainer::getText).toArray(String[]::new))
                                      .toArray(String[][]::new);
                    
-                   var removableRowCountFromStart = (emptyColumnSkipMethod & 1) == 0 ? 0 : calculateRemovableRowCount(rows, (k, i) -> k[i]);
-                   var removableRowCountFromEnd = (emptyColumnSkipMethod & 2) == 0 ? 0 : calculateRemovableRowCount(rows, (k, i) -> k[k.length - 1 - i]);
+                   var removableColumnCountFromBegin = (emptyColumnSkipMethod & 1) == 0 ? 0 : calculateRemovableColumnCount(rows, walkForewards());
+                   var removableColumnCountFromEnd = (emptyColumnSkipMethod & 2) == 0 ? 0 : calculateRemovableColumnCount(rows, walkBackwards());
+                   var removableRowCountFromBegin = (emptyRowSkipMethod & 1) == 0 ? 0 : calculateRemovableRowCount(rows, providingForewards());
+                   var removableRowCountFromEnd = (emptyRowSkipMethod & 2) == 0 ? 0 : calculateRemovableRowCount(rows, providingBackwards());
                    
-                   if(rowComparisonFunction.test(rows.length) && columnComparisonFunction.test(rows[0].length - removableRowCountFromStart - removableRowCountFromEnd)) {
-                       var pageSheet = excelOutput.createSheet(pageNamingFunction.apply(excelOutput, pageIndex, tableIndex));
+                   if(rowComparisonFunction.test(rows.length - removableRowCountFromBegin - removableRowCountFromEnd) && 
+                      columnComparisonFunction.test(rows[0].length - removableColumnCountFromBegin - removableColumnCountFromEnd)) {
                        
-                       range(0, rows.length).forEach(rowIndex -> {
+                       var pageSheet = excelOutput.createSheet(pageNamingFunction.apply(excelOutput, pageIndex, tableIndex));
+                       range(removableRowCountFromBegin, rows.length - removableRowCountFromEnd)
+                      .forEach(rowIndex -> {
                            var excelRow = pageSheet.createRow(rowIndex);
                            
-                           range(removableRowCountFromStart, rows[rowIndex].length - removableRowCountFromEnd)
+                           range(removableColumnCountFromBegin, rows[rowIndex].length - removableColumnCountFromEnd)
                           .forEach(columnIndex -> excelRow.createCell(columnIndex).setCellValue(rows[rowIndex][columnIndex]));
                        });
                        
@@ -207,12 +221,28 @@ public final class Main {
        });
     }
 
-    private static int calculateRemovableRowCount(String[][] rows, ArrayIntFunction<String> elementProviderFunction) {
-        return Arrays.stream(rows)
-                     .mapToInt(k -> range(0, k.length).takeWhile(i -> elementProviderFunction.apply(k, i).isBlank()).map(i -> 1).sum())
+    
+    //This function walks rows forewards/backwards until it finds a non blank value
+    //instead of walking columns downwards/upwards, avoiding jumping between arrays
+    private static int calculateRemovableColumnCount(String[][] data, RowWalkerFunction walkerFunction) {
+        return Arrays.stream(data)
+                     .mapToInt(columnData -> IntStream.range(0, columnData.length)
+                                                      .mapToObj(columnIndex -> walkerFunction.apply(columnData, columnIndex))
+                                                      .takeWhile(String::isBlank)
+                                                      .mapToInt(i -> 1)
+                                                      .sum())
                      .min()
                      .orElse(0);
     }
+    
+    //This function walks rows forewards/backwards until it finds a row that is not fully empty
+    private static int calculateRemovableRowCount(String[][] data, RowProviderFunction elementProvider) {
+        return IntStream.range(0, data.length)
+                        .takeWhile(k -> Arrays.stream(elementProvider.apply(data, k)).allMatch(String::isBlank))
+                        .map(k -> 1)
+                        .sum();
+    }
+    
     
     private static boolean getBooleanSetting(String setting, boolean defaultValue, JsonObject settingsObject) {
         var value = settingsObject.get(setting);
@@ -291,11 +321,7 @@ public final class Main {
         var wombocombo = new JComboBox<>(elements);
         wombocombo.setBounds(x, y, width, 30);
         wombocombo.setFocusable(false);
-        
-        var elementIndex = indexOf(settingsValue, elements);
-        if(elementIndex != -1) {
-            wombocombo.setSelectedIndex(elementIndex);
-        }
+        wombocombo.setSelectedItem(settingsValue);
         return wombocombo;
     }
     
@@ -353,10 +379,33 @@ public final class Main {
         return -1;
     }
     
-    public interface ArrayIntFunction<T>{
-        T apply(T[] array, int k);
+    @FunctionalInterface
+    public interface RowWalkerFunction {
+        String apply(String[] data, int columnIndex);
+        
+        static RowWalkerFunction walkForewards() {
+            return (row, columnIndex) -> row[columnIndex];
+        }
+        
+        static RowWalkerFunction walkBackwards() {
+            return (row, columnIndex) -> row[row.length - 1 - columnIndex];
+        }
     }
     
+    @FunctionalInterface
+    public interface RowProviderFunction {
+        String[] apply(String[][] data, int columnIndex);
+        
+        static RowProviderFunction providingForewards() {
+            return (data, columnIndex) -> data[columnIndex];
+        }
+        
+        static RowProviderFunction providingBackwards() {
+            return (data, columnIndex) -> data[data.length - columnIndex - 1];
+        }
+    }
+    
+    @FunctionalInterface
     public interface PageNamingFunction {
         String apply(XSSFWorkbook workbook, int pageIndex, int tableIndex);
     }
