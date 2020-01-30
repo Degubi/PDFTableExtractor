@@ -111,7 +111,7 @@ public final class Main {
             
             Runtime.getRuntime()
                    .addShutdownHook(new Thread(() -> saveSettings(gson, settingsPath, comparisonMethods, pageNamingMethods, parallelCheckBox, autosizeCheckBox,
-                                                                  rowsComboBox, columnsComboBox, rowComparisonBox, columnComparisonBox, pageNamingComboBox, emptyColumnSkipGroup)));
+                                                                  rowsComboBox, columnsComboBox, rowComparisonBox, columnComparisonBox, pageNamingComboBox, emptyColumnSkipGroup, emptyRowSkipGroup)));
         }else{
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
             
@@ -274,7 +274,7 @@ public final class Main {
     
     private static void saveSettings(Gson gson, Path settingsPath, String[] comparisonMethods, String[] pageNamingMethods, JCheckBox parallelCheckbox, JCheckBox autosizeColumns,
                                      JComboBox<Integer> rowsPerPageSelector, JComboBox<Integer> columnsPerPageSelector, JComboBox<String> rowComparisonSelector,
-                                     JComboBox<String> columnComparisonSelector, JComboBox<String> pageNamingComboBox, ButtonGroup emptyColumnSkipButtons) {
+                                     JComboBox<String> columnComparisonSelector, JComboBox<String> pageNamingComboBox, ButtonGroup emptyColumnSkipButtons, ButtonGroup emptyRowSkipButtons) {
         
         var settings = new JsonObject();
         settings.addProperty(SETTING_ROWS_PER_PAGE, (Integer) rowsPerPageSelector.getSelectedItem());
@@ -285,7 +285,8 @@ public final class Main {
         settings.addProperty(SETTING_PARALLEL_FILEPROCESS, Boolean.valueOf(parallelCheckbox.isSelected()));
         settings.addProperty(SETTING_PAGENAMING_METHOD, Integer.valueOf(indexOf((String) pageNamingComboBox.getSelectedItem(), pageNamingMethods)));
         settings.addProperty(SETTING_EMPTY_COLUMN_SKIP_METHOD, Integer.valueOf(emptyColumnSkipButtons.getSelection().getMnemonic()));
-        
+        settings.addProperty(SETTING_EMPTY_ROW_SKIP_METHOD, Integer.valueOf(emptyRowSkipButtons.getSelection().getMnemonic()));
+
         try {
             Files.writeString(settingsPath, gson.toJson(settings), WRITE, CREATE, TRUNCATE_EXISTING);
         } catch (IOException e) {
