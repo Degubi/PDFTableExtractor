@@ -27,7 +27,7 @@ import technology.tabula.*;
 import technology.tabula.extractors.*;
 
 public final class Main {
-    public static final String VERSION = "1.0.0";
+    public static final String VERSION = "1.1.0";
     public static final String SETTING_PARALLEL_FILEPROCESS = "parallelFileProcess";
     public static final String SETTING_ROWS_PER_PAGE = "rowsPerPage";
     public static final String SETTING_ROW_COMPARISON_METHOD = "rowComparisonMethod";
@@ -365,7 +365,7 @@ public final class Main {
                 return "Local app version: " + VERSION + " is up to date!";
             }
             
-            return "Local app version: " + VERSION + " is out of date! Remote app version: " + remoteVersion + "Check https://github.com/Degubi/PDFTableExtractor for new release!";
+            return "Local app version: " + VERSION + " is out of date! Remote app version: " + remoteVersion + "\nCheck https://github.com/Degubi/PDFTableExtractor for new release!";
         } catch (Exception e) {
             return "Unable to get app version from repository: https://github.com/Degubi/PDFTableExtractor";
         }
