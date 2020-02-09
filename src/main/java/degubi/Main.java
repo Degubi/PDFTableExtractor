@@ -42,8 +42,7 @@ public final class Main {
     public static void main(String[] args) throws ClassNotFoundException, InstantiationException, IllegalAccessException, UnsupportedLookAndFeelException {
         var gson = new GsonBuilder().setPrettyPrinting().create();
         var versionCheckResult = CompletableFuture.supplyAsync(() -> createVersionCheckingTask(gson));
-        var sourceDir = Path.of(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath().substring(1)).getParent().toString().replace("%20", " ");
-        var settingsPath = Path.of(sourceDir + "/settings.json");
+        var settingsPath = Path.of("settings.json");
         var settingsObject = readSettings(settingsPath, gson);
         var rowsPerPage = getIntSetting(SETTING_ROWS_PER_PAGE, 1, settingsObject);
         var rowComparisonMethod = getIntSetting(SETTING_ROW_COMPARISON_METHOD, 2, settingsObject);

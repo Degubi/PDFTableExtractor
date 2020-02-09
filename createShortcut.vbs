@@ -4,4 +4,5 @@ Set link = Shell.CreateShortcut(Shell.SpecialFolders("Desktop") & "\PDFTableExtr
 link.Arguments = "-jar " & """" & scriptPath & "\PDFTableExtractor.jar" & """"
 link.TargetPath = scriptPath & "\bin\java.exe"
 link.IconLocation = scriptPath & "\icon.ico"
+link.WorkingDirectory = scriptPath
 link.Save
