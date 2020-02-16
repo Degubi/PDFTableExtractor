@@ -39,7 +39,7 @@ public final class Main {
     public static final String SETTING_EMPTY_ROW_SKIP_METHOD = "emptyRowSkipMethod";
     
     @SuppressWarnings("boxing")
-    public static void main(String[] args) throws ClassNotFoundException, InstantiationException, IllegalAccessException, UnsupportedLookAndFeelException {
+    public static void main(String[] args) {
         var gson = new GsonBuilder().setPrettyPrinting().create();
         var versionCheckResult = CompletableFuture.supplyAsync(() -> createVersionCheckingTask(gson));
         var settingsPath = Path.of("settings.json");
@@ -55,7 +55,9 @@ public final class Main {
         var emptyRowSkipMethod = getIntSetting(SETTING_EMPTY_ROW_SKIP_METHOD, 0, settingsObject);
         
         if(args.length == 0) {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception e) {}
             
             var oneThruTen = IntStream.rangeClosed(1, 10).boxed().toArray(Integer[]::new);
             var comparisonMethods = new String[] {"less/equal", "equal", "greater/equal"};
@@ -178,7 +180,7 @@ public final class Main {
                                     .map(textExtractor::extract)
                                     .toArray(List[]::new);
         
-        var extractedPages = (List<Table>[]) rawPages;   //Gotta love Java's non generic arrays, 'rawPages' and this cast is fine
+        var extractedPages = (List<Table>[]) rawPages;   //Gotta love Java's non generic arrays, this cast is fine
           
         range(0, extractedPages.length)
        .forEach(pageIndex -> {
@@ -197,7 +199,7 @@ public final class Main {
                    var removableRowCountFromBegin = (emptyRowSkipMethod & 1) == 0 ? 0 : calculateRemovableRowCount(rows, providingForewards());
                    var removableRowCountFromEnd = (emptyRowSkipMethod & 2) == 0 ? 0 : calculateRemovableRowCount(rows, providingBackwards());
                    
-                   if(rowComparisonFunction.test(rows.length - removableRowCountFromBegin - removableRowCountFromEnd) && 
+                   if(rowComparisonFunction.test(rows.length - removableRowCountFromBegin - removableRowCountFromEnd) &&
                       columnComparisonFunction.test(rows[0].length - removableColumnCountFromBegin - removableColumnCountFromEnd)) {
                        
                        var pageSheet = excelOutput.createSheet(pageNamingFunction.apply(excelOutput, pageIndex, tableIndex));
