@@ -42,8 +42,7 @@ public final class Main {
     public static void main(String[] args) {
         var gson = new GsonBuilder().setPrettyPrinting().create();
         var versionCheckResult = CompletableFuture.supplyAsync(() -> createVersionCheckingTask(gson));
-        var settingsPath = Path.of("settings.json");
-        var settingsObject = readSettings(settingsPath, gson);
+        var settingsObject = readSettings(gson);
         var rowsPerPage = getIntSetting(SETTING_ROWS_PER_PAGE, 1, settingsObject);
         var rowComparisonMethod = getIntSetting(SETTING_ROW_COMPARISON_METHOD, 2, settingsObject);
         var columnsPerPage = getIntSetting(SETTING_COLUMNS_PER_PAGE, 1, settingsObject);
@@ -111,8 +110,8 @@ public final class Main {
             frame.setVisible(true);
             
             Runtime.getRuntime()
-                   .addShutdownHook(new Thread(() -> saveSettings(gson, settingsPath, comparisonMethods, pageNamingMethods, parallelCheckBox, autosizeCheckBox,
-                                                                  rowsComboBox, columnsComboBox, rowComparisonBox, columnComparisonBox, pageNamingComboBox, emptyColumnSkipGroup, emptyRowSkipGroup)));
+                   .addShutdownHook(new Thread(() -> saveSettings(gson, comparisonMethods, pageNamingMethods, parallelCheckBox, autosizeCheckBox, rowsComboBox, columnsComboBox,
+                                                                  rowComparisonBox, columnComparisonBox, pageNamingComboBox, emptyColumnSkipGroup, emptyRowSkipGroup)));
         }else{
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
             
@@ -125,14 +124,9 @@ public final class Main {
             pdfSrc.map(Path::of)
                   .map(Path::toAbsolutePath)
                   .map(Path::toString)
+                  .peek(k -> System.out.println("Opening file: " + k))
+                  .filter(Main::checkFileExtension)
                   .forEach(inputFile -> {
-                      System.out.println("Opening file: " + inputFile);
-                      
-                      if(!inputFile.endsWith(".pdf")) {
-                          System.out.println(inputFile + " is not a pdf file");
-                          return;
-                      }
-                      
                       try(var pdfInput = PDDocument.load(new File(inputFile));
                           var excelOutput = new XSSFWorkbook()){
                           
@@ -141,8 +135,7 @@ public final class Main {
                           
                           var numberOfSheets = excelOutput.getNumberOfSheets();
                           if(numberOfSheets > 0) {
-                              var separatorIndex = inputFile.lastIndexOf('.');
-                              var filePath = inputFile.substring(0, separatorIndex);
+                              var filePath = inputFile.substring(0, inputFile.lastIndexOf('.'));
                               var outputFile = Path.of(filePath + ".xlsx");
                               System.out.println("Writing " + numberOfSheets + " pages to file: " + outputFile);
                               
@@ -221,7 +214,17 @@ public final class Main {
            });
        });
     }
-
+    
+    private static boolean checkFileExtension(String filePath) {
+        if(!filePath.endsWith(".pdf")) {
+            System.out.println(filePath + " is not a pdf file");
+            return false;
+        }
+        
+        return true;
+    }
+    
+    
     
     //This function walks rows forewards/backwards until it finds a non blank value
     //instead of walking columns downwards/upwards, avoiding jumping between arrays
@@ -265,15 +268,15 @@ public final class Main {
         return defaultValue;
     }
     
-    private static JsonObject readSettings(Path settingsPath, Gson gson) {
+    private static JsonObject readSettings(Gson gson) {
         try {
-            return gson.fromJson(Files.readString(settingsPath), JsonObject.class);
+            return gson.fromJson(Files.readString(Path.of("settings.json")), JsonObject.class);
         } catch (IOException e) {
             return new JsonObject();
         }
     }
     
-    private static void saveSettings(Gson gson, Path settingsPath, String[] comparisonMethods, String[] pageNamingMethods, JCheckBox parallelCheckbox, JCheckBox autosizeColumns,
+    private static void saveSettings(Gson gson, String[] comparisonMethods, String[] pageNamingMethods, JCheckBox parallelCheckbox, JCheckBox autosizeColumns,
                                      JComboBox<Integer> rowsPerPageSelector, JComboBox<Integer> columnsPerPageSelector, JComboBox<String> rowComparisonSelector,
                                      JComboBox<String> columnComparisonSelector, JComboBox<String> pageNamingComboBox, ButtonGroup emptyColumnSkipButtons, ButtonGroup emptyRowSkipButtons) {
         
@@ -289,7 +292,7 @@ public final class Main {
         settings.addProperty(SETTING_EMPTY_ROW_SKIP_METHOD, Integer.valueOf(emptyRowSkipButtons.getSelection().getMnemonic()));
 
         try {
-            Files.writeString(settingsPath, gson.toJson(settings), WRITE, CREATE, TRUNCATE_EXISTING);
+            Files.writeString(Path.of("settings.json"), gson.toJson(settings), WRITE, CREATE, TRUNCATE_EXISTING);
         } catch (IOException e) {
             System.out.println("Unable to write the settings file!");
         }
