@@ -1,5 +1,7 @@
 /target/
 .settings
 .classpath
+.project
+.pydevproject
 error.txt
 settings.json
