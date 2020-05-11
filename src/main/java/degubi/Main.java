@@ -1,7 +1,6 @@
 package degubi;
 
-import static degubi.Main.RowProviderFunction.*;
-import static degubi.Main.RowWalkerFunction.*;
+import static degubi.Settings.*;
 import static java.nio.file.StandardOpenOption.*;
 import static java.util.Spliterator.*;
 import static java.util.stream.IntStream.*;
@@ -28,97 +27,94 @@ import technology.tabula.extractors.*;
 
 public final class Main {
     public static final String VERSION = "1.1.0";
-    public static final String SETTING_PARALLEL_FILEPROCESS = "parallelFileProcess";
-    public static final String SETTING_ROWS_PER_PAGE = "rowsPerPage";
-    public static final String SETTING_ROW_COMPARISON_METHOD = "rowComparisonMethod";
-    public static final String SETTING_COLUMNS_PER_PAGE = "columnsPerPage";
-    public static final String SETTING_COLUMN_COMPARISON_METHOD = "columnComparisonMethod";
-    public static final String SETTING_AUTOSIZE_COLUMNS = "autosizeColumns";
-    public static final String SETTING_PAGENAMING_METHOD = "pageNamingMethod";
-    public static final String SETTING_EMPTY_COLUMN_SKIP_METHOD = "emptyColumnSkipMethod";
-    public static final String SETTING_EMPTY_ROW_SKIP_METHOD = "emptyRowSkipMethod";
-    
+    public static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
     @SuppressWarnings("boxing")
-    public static void main(String[] args) {
-        var gson = new GsonBuilder().setPrettyPrinting().create();
-        var versionCheckResult = CompletableFuture.supplyAsync(() -> createVersionCheckingTask(gson));
-        var settingsObject = readSettings(gson);
-        var rowsPerPage = getIntSetting(SETTING_ROWS_PER_PAGE, 1, settingsObject);
-        var rowComparisonMethod = getIntSetting(SETTING_ROW_COMPARISON_METHOD, 2, settingsObject);
-        var columnsPerPage = getIntSetting(SETTING_COLUMNS_PER_PAGE, 1, settingsObject);
-        var columnComparisonMethod = getIntSetting(SETTING_COLUMN_COMPARISON_METHOD, 2, settingsObject);
-        var parallelExtraction = getBooleanSetting(SETTING_PARALLEL_FILEPROCESS, false, settingsObject);
-        var autosizeColumns = getBooleanSetting(SETTING_AUTOSIZE_COLUMNS, true, settingsObject);
-        var pageNamingMethod = getIntSetting(SETTING_PAGENAMING_METHOD, 0, settingsObject);
-        var emptyColumnSkipMethod = getIntSetting(SETTING_EMPTY_COLUMN_SKIP_METHOD, 0, settingsObject);
-        var emptyRowSkipMethod = getIntSetting(SETTING_EMPTY_ROW_SKIP_METHOD, 0, settingsObject);
+    public static void main(String[] args) throws Exception {
+        var versionCheckResult = CompletableFuture.supplyAsync(Main::createVersionCheckingTask);
         
         if(args.length == 0) {
-            try {
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception e) {}
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
             
             var oneThruTen = IntStream.rangeClosed(1, 10).boxed().toArray(Integer[]::new);
             var comparisonMethods = new String[] {"less/equal", "equal", "greater/equal"};
             var pageNamingMethods = new String[] {"counting", "pageOrdinal-tableOrdinal"};
             
-            var rowsComboBox = newComboBox(320, 50, 50, rowsPerPage, oneThruTen);
-            var rowComparisonBox = newComboBox(160, 50, 100, comparisonMethods[rowComparisonMethod], comparisonMethods);
-            var columnsComboBox = newComboBox(320, 90, 50, columnsPerPage, oneThruTen);
-            var columnComparisonBox = newComboBox(160, 90, 100, comparisonMethods[columnComparisonMethod], comparisonMethods);
-            var pageNamingComboBox = newComboBox(140, 240, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
-            var autosizeCheckBox = newCheckBox(15, 280, "Autosize Columns After Extraction", autosizeColumns);
-            var parallelCheckBox = newCheckBox(15, 360, "Enable Parallel File Processing", parallelExtraction);
+            var rowsPerPageSelector = Components.newComboBox(320, 50, 50, rowsPerPage, oneThruTen);
+            var rowComparisonSelector = Components.newComboBox(160, 50, 100, comparisonMethods[rowComparisonMethod], comparisonMethods);
+            var columnsPerPageSelector = Components.newComboBox(320, 90, 50, columnsPerPage, oneThruTen);
+            var columnComparisonSelector = Components.newComboBox(160, 90, 100, comparisonMethods[columnComparisonMethod], comparisonMethods);
+            var pageNamingComboBox = Components.newComboBox(140, 240, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
+            var autosizeColumnsCheckBox = Components.newCheckBox(15, 280, "Autosize Columns After Extraction", autosizeColumns);
+            var parallelCheckBox = Components.newCheckBox(15, 360, "Enable Parallel File Processing", parallelExtraction);
+            var versionCheckingDisabledBox = Components.newCheckBox(15, 440, "Disable Version Checking", versionCheckingDisabled);
             
             var panel = new JPanel(null);
             var bigBaldFont = new Font("SansSerif", Font.BOLD, 20);
             var emptyColumnSkipGroup = new ButtonGroup();
             var emptyRowSkipGroup = new ButtonGroup();
 
-            addSettingsSection("Page Filters", 10, panel, bigBaldFont);
-            panel.add(newLabel(20, 50, "Keep pages with rows:"));
-            panel.add(rowsComboBox);
-            panel.add(newLabel(270, 50, "than/to"));
-            panel.add(rowComparisonBox);
-            panel.add(newLabel(20, 90, "Keep pages with columns:"));
-            panel.add(columnsComboBox);
-            panel.add(newLabel(270, 90, "than/to"));
-            panel.add(columnComparisonBox);
-            panel.add(newLabel(20, 130, "Skip empty rows:"));
-            panel.add(newRadioButton(155, 130, 50, "None", 0, emptyRowSkipMethod == 0, emptyRowSkipGroup));
-            panel.add(newRadioButton(220, 130, 65, "Leading", 1, emptyRowSkipMethod == 1, emptyRowSkipGroup));
-            panel.add(newRadioButton(300, 130, 60, "Trailing", 2, emptyRowSkipMethod == 2, emptyRowSkipGroup));
-            panel.add(newRadioButton(380, 130, 55, "Both", 3, emptyRowSkipMethod == 3, emptyRowSkipGroup));
-            panel.add(newLabel(20, 160, "Skip empty columns:"));
-            panel.add(newRadioButton(155, 160, 50, "None", 0, emptyColumnSkipMethod == 0, emptyColumnSkipGroup));
-            panel.add(newRadioButton(220, 160, 65, "Leading", 1, emptyColumnSkipMethod == 1, emptyColumnSkipGroup));
-            panel.add(newRadioButton(300, 160, 60, "Trailing", 2, emptyColumnSkipMethod == 2, emptyColumnSkipGroup));
-            panel.add(newRadioButton(380, 160, 55, "Both", 3, emptyColumnSkipMethod == 3, emptyColumnSkipGroup));
-            addSettingsSection("Page Settings", 200, panel, bigBaldFont);
-            panel.add(newLabel(20, 240, "Page naming strategy: "));
+            Components.addSettingsSection("Page Filters", 10, panel, bigBaldFont);
+            panel.add(Components.newLabel(20, 50, "Keep pages with rows:"));
+            panel.add(rowsPerPageSelector);
+            panel.add(Components.newLabel(270, 50, "than/to"));
+            panel.add(rowComparisonSelector);
+            panel.add(Components.newLabel(20, 90, "Keep pages with columns:"));
+            panel.add(columnsPerPageSelector);
+            panel.add(Components.newLabel(270, 90, "than/to"));
+            panel.add(columnComparisonSelector);
+            panel.add(Components.newLabel(20, 130, "Skip empty rows:"));
+            panel.add(Components.newRadioButton(155, 130, 50, "None", 0, emptyRowSkipMethod == 0, emptyRowSkipGroup));
+            panel.add(Components.newRadioButton(220, 130, 65, "Leading", 1, emptyRowSkipMethod == 1, emptyRowSkipGroup));
+            panel.add(Components.newRadioButton(300, 130, 60, "Trailing", 2, emptyRowSkipMethod == 2, emptyRowSkipGroup));
+            panel.add(Components.newRadioButton(380, 130, 55, "Both", 3, emptyRowSkipMethod == 3, emptyRowSkipGroup));
+            panel.add(Components.newLabel(20, 160, "Skip empty columns:"));
+            panel.add(Components.newRadioButton(155, 160, 50, "None", 0, emptyColumnSkipMethod == 0, emptyColumnSkipGroup));
+            panel.add(Components.newRadioButton(220, 160, 65, "Leading", 1, emptyColumnSkipMethod == 1, emptyColumnSkipGroup));
+            panel.add(Components.newRadioButton(300, 160, 60, "Trailing", 2, emptyColumnSkipMethod == 2, emptyColumnSkipGroup));
+            panel.add(Components.newRadioButton(380, 160, 55, "Both", 3, emptyColumnSkipMethod == 3, emptyColumnSkipGroup));
+            
+            Components.addSettingsSection("Page Settings", 200, panel, bigBaldFont);
+            panel.add(Components.newLabel(20, 240, "Page naming strategy: "));
             panel.add(pageNamingComboBox);
-            panel.add(autosizeCheckBox);
-            addSettingsSection("File Settings", 320, panel, bigBaldFont);
+            panel.add(autosizeColumnsCheckBox);
+            
+            Components.addSettingsSection("File Settings", 320, panel, bigBaldFont);
             panel.add(parallelCheckBox);
+            
+            Components.addSettingsSection("App Settings", 400, panel, bigBaldFont);
+            panel.add(versionCheckingDisabledBox);
             
             var frame = new JFrame("PDF Table Extractor - " + VERSION);
             frame.setContentPane(panel);
-            frame.setBounds(0, 0, 600, 500);
+            frame.setSize(600, 550);
             frame.setLocationRelativeTo(null);
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.setResizable(false);
             frame.setVisible(true);
             
             Runtime.getRuntime()
-                   .addShutdownHook(new Thread(() -> saveSettings(gson, comparisonMethods, pageNamingMethods, parallelCheckBox, autosizeCheckBox, rowsComboBox, columnsComboBox,
-                                                                  rowComparisonBox, columnComparisonBox, pageNamingComboBox, emptyColumnSkipGroup, emptyRowSkipGroup)));
+                   .addShutdownHook(new Thread(() -> {
+                       var settings = new JsonObject();
+                       settings.addProperty(SETTING_ROWS_PER_PAGE, (Integer) rowsPerPageSelector.getSelectedItem());
+                       settings.addProperty(SETTING_ROW_COMPARISON_METHOD, indexOf((String) rowComparisonSelector.getSelectedItem(), comparisonMethods));
+                       settings.addProperty(SETTING_COLUMNS_PER_PAGE, (Integer) columnsPerPageSelector.getSelectedItem());
+                       settings.addProperty(SETTING_COLUMN_COMPARISON_METHOD, indexOf((String) columnComparisonSelector.getSelectedItem(), comparisonMethods));
+                       settings.addProperty(SETTING_AUTOSIZE_COLUMNS, autosizeColumnsCheckBox.isSelected());
+                       settings.addProperty(SETTING_PARALLEL_FILEPROCESS, parallelCheckBox.isSelected());
+                       settings.addProperty(SETTING_PAGENAMING_METHOD, indexOf((String) pageNamingComboBox.getSelectedItem(), pageNamingMethods));
+                       settings.addProperty(SETTING_EMPTY_COLUMN_SKIP_METHOD, emptyColumnSkipGroup.getSelection().getMnemonic());
+                       settings.addProperty(SETTING_EMPTY_ROW_SKIP_METHOD, emptyRowSkipGroup.getSelection().getMnemonic());
+                       settings.addProperty(SETTING_VERSION_CHECKING_DISABLED, versionCheckingDisabledBox.isSelected());
+                       
+                       saveSettings(settings);
+                }));
         }else{
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
             
             var rowComparisonFunction = getComparisonFunction(rowComparisonMethod, rowsPerPage);
             var columnComparisonFunction = getComparisonFunction(columnComparisonMethod, columnsPerPage);
             var pageNamingFunction = getPageNamingFunction(pageNamingMethod);
-            var textExtractor = new SpreadsheetExtractionAlgorithm();
             var pdfSrc = parallelExtraction ? Arrays.stream(args).parallel()
                                             : Arrays.stream(args);
             pdfSrc.map(Path::of)
@@ -131,7 +127,7 @@ public final class Main {
                           var excelOutput = new XSSFWorkbook()){
                           
                           System.out.println("Extracting data from: " + inputFile);
-                          extractPDF(autosizeColumns, emptyColumnSkipMethod, emptyRowSkipMethod, rowComparisonFunction, columnComparisonFunction, pageNamingFunction, pdfInput, excelOutput, textExtractor);
+                          extractPDF(autosizeColumns, emptyColumnSkipMethod, emptyRowSkipMethod, rowComparisonFunction, columnComparisonFunction, pageNamingFunction, pdfInput, excelOutput);
                           
                           var numberOfSheets = excelOutput.getNumberOfSheets();
                           if(numberOfSheets > 0) {
@@ -148,18 +144,11 @@ public final class Main {
                               System.out.println("No pages were extracted from file: " + inputFile);
                           }
                       }catch(Exception e) {
-                          System.out.println("An error happened, check error.txt for details");
-                          
-                          try(var exceptionOutput = new PrintStream("error.txt")){
-                              e.printStackTrace(exceptionOutput);
-                          } catch (FileNotFoundException e1) {}
+                          writeErrorInfo(e);
                       }
                   });
             
-            try {
-                System.out.println(versionCheckResult.get());
-            } catch (InterruptedException | ExecutionException e) {}
-            
+            System.out.println(versionCheckResult.get());
             System.out.print("All done, press enter");
             System.console().readLine();
         }
@@ -167,8 +156,9 @@ public final class Main {
 
     @SuppressWarnings({"unchecked", "cast"})
     public static void extractPDF(boolean autosizeColumns, int emptyColumnSkipMethod, int emptyRowSkipMethod, IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction,
-                                  PageNamingFunction pageNamingFunction, PDDocument pdfInput, XSSFWorkbook excelOutput, SpreadsheetExtractionAlgorithm textExtractor) {
+                                  PageNamingFunction pageNamingFunction, PDDocument pdfInput, XSSFWorkbook excelOutput) {
         
+        var textExtractor = new SpreadsheetExtractionAlgorithm();
         var rawPages = StreamSupport.stream(Spliterators.spliteratorUnknownSize(new ObjectExtractor(pdfInput).extract(), ORDERED | IMMUTABLE), false)
                                     .map(textExtractor::extract)
                                     .toArray(List[]::new);
@@ -187,10 +177,10 @@ public final class Main {
                                      .map(k -> k.stream().map(RectangularTextContainer::getText).toArray(String[]::new))
                                      .toArray(String[][]::new);
                    
-                   var removableColumnCountFromBegin = (emptyColumnSkipMethod & 1) == 0 ? 0 : calculateRemovableColumnCount(rows, walkForewards());
-                   var removableColumnCountFromEnd = (emptyColumnSkipMethod & 2) == 0 ? 0 : calculateRemovableColumnCount(rows, walkBackwards());
-                   var removableRowCountFromBegin = (emptyRowSkipMethod & 1) == 0 ? 0 : calculateRemovableRowCount(rows, providingForewards());
-                   var removableRowCountFromEnd = (emptyRowSkipMethod & 2) == 0 ? 0 : calculateRemovableRowCount(rows, providingBackwards());
+                   var removableColumnCountFromBegin = (emptyColumnSkipMethod & 1) == 0 ? 0 : calculateRemovableColumnCount(rows, RowWalkerFunction.walkForwards());
+                   var removableColumnCountFromEnd = (emptyColumnSkipMethod & 2) == 0 ? 0 : calculateRemovableColumnCount(rows, RowWalkerFunction.walkBackwards());
+                   var removableRowCountFromBegin = (emptyRowSkipMethod & 1) == 0 ? 0 : calculateRemovableRowCount(rows, RowProviderFunction.providingForwards());
+                   var removableRowCountFromEnd = (emptyRowSkipMethod & 2) == 0 ? 0 : calculateRemovableRowCount(rows, RowProviderFunction.providingBackwards());
                    
                    if(rowComparisonFunction.test(rows.length - removableRowCountFromBegin - removableRowCountFromEnd) &&
                       columnComparisonFunction.test(rows[0].length - removableColumnCountFromBegin - removableColumnCountFromEnd)) {
@@ -226,7 +216,7 @@ public final class Main {
     
     
     
-    //This function walks rows forewards/backwards until it finds a non blank value
+    //This function walks rows forwards/backwards until it finds a non blank value
     //instead of walking columns downwards/upwards, avoiding jumping between arrays
     private static int calculateRemovableColumnCount(String[][] data, RowWalkerFunction walkerFunction) {
         return Arrays.stream(data)
@@ -239,108 +229,13 @@ public final class Main {
                      .orElse(0);
     }
     
-    //This function walks rows forewards/backwards until it finds a row that is not fully empty
+    //This function walks rows forwards/backwards until it finds a row that is not fully empty
     private static int calculateRemovableRowCount(String[][] data, RowProviderFunction elementProvider) {
         return IntStream.range(0, data.length)
                         .takeWhile(k -> Arrays.stream(elementProvider.apply(data, k)).allMatch(String::isBlank))
                         .map(k -> 1)
                         .sum();
     }
-    
-    
-    private static boolean getBooleanSetting(String setting, boolean defaultValue, JsonObject settingsObject) {
-        var value = settingsObject.get(setting);
-        if(value != null) {
-            return value.getAsBoolean();
-        }
-        
-        settingsObject.addProperty(setting, Boolean.valueOf(defaultValue));
-        return defaultValue;
-    }
-    
-    private static int getIntSetting(String setting, int defaultValue, JsonObject settingsObject) {
-        var value = settingsObject.get(setting);
-        if(value != null) {
-            return value.getAsInt();
-        }
-        
-        settingsObject.addProperty(setting, Integer.valueOf(defaultValue));
-        return defaultValue;
-    }
-    
-    private static JsonObject readSettings(Gson gson) {
-        try {
-            return gson.fromJson(Files.readString(Path.of("settings.json")), JsonObject.class);
-        } catch (IOException e) {
-            return new JsonObject();
-        }
-    }
-    
-    private static void saveSettings(Gson gson, String[] comparisonMethods, String[] pageNamingMethods, JCheckBox parallelCheckbox, JCheckBox autosizeColumns,
-                                     JComboBox<Integer> rowsPerPageSelector, JComboBox<Integer> columnsPerPageSelector, JComboBox<String> rowComparisonSelector,
-                                     JComboBox<String> columnComparisonSelector, JComboBox<String> pageNamingComboBox, ButtonGroup emptyColumnSkipButtons, ButtonGroup emptyRowSkipButtons) {
-        
-        var settings = new JsonObject();
-        settings.addProperty(SETTING_ROWS_PER_PAGE, (Integer) rowsPerPageSelector.getSelectedItem());
-        settings.addProperty(SETTING_ROW_COMPARISON_METHOD, Integer.valueOf(indexOf((String) rowComparisonSelector.getSelectedItem(), comparisonMethods)));
-        settings.addProperty(SETTING_COLUMNS_PER_PAGE, (Integer) columnsPerPageSelector.getSelectedItem());
-        settings.addProperty(SETTING_COLUMN_COMPARISON_METHOD, Integer.valueOf(indexOf((String) columnComparisonSelector.getSelectedItem(), comparisonMethods)));
-        settings.addProperty(SETTING_AUTOSIZE_COLUMNS, Boolean.valueOf(autosizeColumns.isSelected()));
-        settings.addProperty(SETTING_PARALLEL_FILEPROCESS, Boolean.valueOf(parallelCheckbox.isSelected()));
-        settings.addProperty(SETTING_PAGENAMING_METHOD, Integer.valueOf(indexOf((String) pageNamingComboBox.getSelectedItem(), pageNamingMethods)));
-        settings.addProperty(SETTING_EMPTY_COLUMN_SKIP_METHOD, Integer.valueOf(emptyColumnSkipButtons.getSelection().getMnemonic()));
-        settings.addProperty(SETTING_EMPTY_ROW_SKIP_METHOD, Integer.valueOf(emptyRowSkipButtons.getSelection().getMnemonic()));
-
-        try {
-            Files.writeString(Path.of("settings.json"), gson.toJson(settings), WRITE, CREATE, TRUNCATE_EXISTING);
-        } catch (IOException e) {
-            System.out.println("Unable to write the settings file!");
-        }
-    }
-    
-    
-    private static JLabel newLabel(int x, int y, String text) {
-        var label = new JLabel(text);
-        label.setBounds(x, y, text.length() * 7, 30);
-        return label;
-    }
-    
-    private static JCheckBox newCheckBox(int x, int y, String text, boolean selected) {
-        var check = new JCheckBox(text, selected);
-        check.setBounds(x, y, text.length() * 6, 30);
-        check.setFocusPainted(false);
-        return check;
-    }
-    
-    private static JRadioButton newRadioButton(int x, int y, int width, String text, int index, boolean selected, ButtonGroup group) {
-        var butt = new JRadioButton(text, selected);
-        butt.setBounds(x, y, width, 30);
-        butt.setMnemonic(index);
-        butt.setFocusPainted(false);
-        group.add(butt);
-        return butt;
-    }
-    
-    @SafeVarargs
-    private static<T> JComboBox<T> newComboBox(int x, int y, int width, T settingsValue, T... elements) {
-        var wombocombo = new JComboBox<>(elements);
-        wombocombo.setBounds(x, y, width, 30);
-        wombocombo.setFocusable(false);
-        wombocombo.setSelectedItem(settingsValue);
-        return wombocombo;
-    }
-    
-    private static void addSettingsSection(String text, int y, JPanel contentPanel, Font font) {
-        var label = new JLabel(text);
-        label.setBounds(20, y, text.length() * 12, 30);
-        label.setFont(font);
-        contentPanel.add(label);
-        
-        var separator = new JSeparator(SwingConstants.HORIZONTAL);
-        separator.setBounds(0, y + 30, 600, 2);
-        contentPanel.add(separator);
-    }
-    
     
     //0: Counting, 1: PageOrdinal+TableOrdinal
     public static PageNamingFunction getPageNamingFunction(int namingMethod) {
@@ -355,8 +250,12 @@ public final class Main {
                                        k -> k >= value;
     }
     
-    private static String createVersionCheckingTask(Gson gson) {
-        var client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private static String createVersionCheckingTask() {
+        if(versionCheckingDisabled) {
+            return "Local app version: " + VERSION + ", version checking was disabled in config";
+        }
+        
+        var client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(7)).build();
         var request = HttpRequest.newBuilder()
                                  .uri(URI.create("https://api.github.com/repos/Degubi/PDFTableExtractor/releases/latest"))
                                  .build();
@@ -375,6 +274,14 @@ public final class Main {
         }
     }
     
+    private static void writeErrorInfo(Exception e) {
+        System.out.println("An error happened, check error.txt for details");
+
+        try(var exceptionOutput = new PrintStream("error.txt")){
+            e.printStackTrace(exceptionOutput);
+        } catch (FileNotFoundException e1) {}
+    }
+    
     private static<T> int indexOf(T element, T[] array) {
         for(var i = 0; i < array.length; ++i) {
             if(array[i].equals(element)) {
@@ -382,36 +289,5 @@ public final class Main {
             }
         }
         return -1;
-    }
-    
-    @FunctionalInterface
-    public interface RowWalkerFunction {
-        String apply(String[] data, int columnIndex);
-        
-        static RowWalkerFunction walkForewards() {
-            return (row, columnIndex) -> row[columnIndex];
-        }
-        
-        static RowWalkerFunction walkBackwards() {
-            return (row, columnIndex) -> row[row.length - 1 - columnIndex];
-        }
-    }
-    
-    @FunctionalInterface
-    public interface RowProviderFunction {
-        String[] apply(String[][] data, int columnIndex);
-        
-        static RowProviderFunction providingForewards() {
-            return (data, columnIndex) -> data[columnIndex];
-        }
-        
-        static RowProviderFunction providingBackwards() {
-            return (data, columnIndex) -> data[data.length - columnIndex - 1];
-        }
-    }
-    
-    @FunctionalInterface
-    public interface PageNamingFunction {
-        String apply(XSSFWorkbook workbook, int pageIndex, int tableIndex);
     }
 }
