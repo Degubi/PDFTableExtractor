@@ -1,9 +1,7 @@
 package degubi;
 
 import static degubi.Settings.*;
-import static java.nio.file.StandardOpenOption.*;
 import static java.util.Spliterator.*;
-import static java.util.stream.IntStream.*;
 
 import com.google.gson.*;
 import java.awt.*;
@@ -31,8 +29,6 @@ public final class Main {
 
     @SuppressWarnings("boxing")
     public static void main(String[] args) throws Exception {
-        var versionCheckResult = CompletableFuture.supplyAsync(Main::createVersionCheckingTask);
-        
         if(args.length == 0) {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
             
@@ -110,6 +106,8 @@ public final class Main {
                        saveSettings(settings);
                 }));
         }else{
+            var versionCheckResult = CompletableFuture.supplyAsync(Main::createVersionCheckingTask);
+
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
             
             var rowComparisonFunction = getComparisonFunction(rowComparisonMethod, rowsPerPage);
@@ -122,35 +120,41 @@ public final class Main {
                   .map(Path::toString)
                   .peek(k -> System.out.println("Opening file: " + k))
                   .filter(Main::checkFileExtension)
-                  .forEach(inputFile -> {
-                      try(var pdfInput = PDDocument.load(new File(inputFile));
-                          var excelOutput = new XSSFWorkbook()){
-                          
-                          System.out.println("Extracting data from: " + inputFile);
-                          extractPDF(autosizeColumns, emptyColumnSkipMethod, emptyRowSkipMethod, rowComparisonFunction, columnComparisonFunction, pageNamingFunction, pdfInput, excelOutput);
-                          
-                          var numberOfSheets = excelOutput.getNumberOfSheets();
-                          if(numberOfSheets > 0) {
-                              var filePath = inputFile.substring(0, inputFile.lastIndexOf('.'));
-                              var outputFile = Path.of(filePath + ".xlsx");
-                              System.out.println("Writing " + numberOfSheets + " pages to file: " + outputFile);
-                              
-                              try(var outputStream = Files.newOutputStream(outputFile, WRITE, CREATE, TRUNCATE_EXISTING)){
-                                  excelOutput.write(outputStream);
-                              }
-                              
-                              System.out.println("Finished: " + outputFile + '\n');
-                          }else{
-                              System.out.println("No pages were extracted from file: " + inputFile);
-                          }
-                      }catch(Exception e) {
-                          writeErrorInfo(e);
-                      }
-                  });
+                  .forEach(inputFile -> handlePDFExtraction(rowComparisonFunction, columnComparisonFunction, pageNamingFunction, inputFile));
             
             System.out.println(versionCheckResult.get());
             System.out.print("All done, press enter");
             System.console().readLine();
+        }
+    }
+
+    private static void handlePDFExtraction(IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction, PageNamingFunction pageNamingFunction, String inputFile) {
+        try(var pdfInput = PDDocument.load(new File(inputFile));
+            var excelOutput = new XSSFWorkbook()){
+              
+            System.out.println("Extracting data from: " + inputFile);
+            extractPDF(autosizeColumns, emptyColumnSkipMethod, emptyRowSkipMethod, rowComparisonFunction, columnComparisonFunction, pageNamingFunction, pdfInput, excelOutput);
+            
+            var numberOfSheets = excelOutput.getNumberOfSheets();
+            if(numberOfSheets > 0) {
+                var filePath = inputFile.substring(0, inputFile.lastIndexOf('.'));
+                var outputFile = Path.of(filePath + ".xlsx");
+                System.out.println("Writing " + numberOfSheets + " pages to file: " + outputFile);
+                
+                try(var outputStream = Files.newOutputStream(outputFile)){
+                    excelOutput.write(outputStream);
+                }
+                
+                System.out.println("Finished: " + outputFile + '\n');
+            }else{
+                System.out.println("No pages were extracted from file: " + inputFile);
+            }
+        }catch(Exception e) {
+            System.out.println("An error happened, check error.txt for details");
+
+            try(var exceptionOutput = new PrintStream("error.txt")){
+                e.printStackTrace(exceptionOutput);
+            } catch (FileNotFoundException e1) {}
         }
     }
 
@@ -164,45 +168,55 @@ public final class Main {
                                     .toArray(List[]::new);
         
         var extractedPages = (List<Table>[]) rawPages;   //Gotta love Java's non generic arrays, this cast is fine
-          
-        range(0, extractedPages.length)
-       .forEach(pageIndex -> {
-           var tables = extractedPages[pageIndex];
-           
-           range(0, tables.size()).forEach(tableIndex -> {
-               var rawRows = tables.get(tableIndex).getRows();
-               
-               if(rawRows.size() > 0) {
-                   var rows = rawRows.stream()
-                                     .map(k -> k.stream().map(RectangularTextContainer::getText).toArray(String[]::new))
-                                     .toArray(String[][]::new);
-                   
-                   var removableColumnCountFromBegin = (emptyColumnSkipMethod & 1) == 0 ? 0 : calculateRemovableColumnCount(rows, RowWalkerFunction.walkForwards());
-                   var removableColumnCountFromEnd = (emptyColumnSkipMethod & 2) == 0 ? 0 : calculateRemovableColumnCount(rows, RowWalkerFunction.walkBackwards());
-                   var removableRowCountFromBegin = (emptyRowSkipMethod & 1) == 0 ? 0 : calculateRemovableRowCount(rows, RowProviderFunction.providingForwards());
-                   var removableRowCountFromEnd = (emptyRowSkipMethod & 2) == 0 ? 0 : calculateRemovableRowCount(rows, RowProviderFunction.providingBackwards());
-                   
-                   if(rowComparisonFunction.test(rows.length - removableRowCountFromBegin - removableRowCountFromEnd) &&
-                      columnComparisonFunction.test(rows[0].length - removableColumnCountFromBegin - removableColumnCountFromEnd)) {
-                       
-                       var pageSheet = excelOutput.createSheet(pageNamingFunction.apply(excelOutput, pageIndex, tableIndex));
-                       range(removableRowCountFromBegin, rows.length - removableRowCountFromEnd)
-                      .forEach(rowIndex -> {
-                           var excelRow = pageSheet.createRow(rowIndex);
-                           
-                           range(removableColumnCountFromBegin, rows[rowIndex].length - removableColumnCountFromEnd)
-                          .forEach(columnIndex -> excelRow.createCell(columnIndex).setCellValue(rows[rowIndex][columnIndex]));
-                       });
-                       
-                       if(autosizeColumns) {
-                           range(0, pageSheet.getRow(0).getPhysicalNumberOfCells()).forEach(pageSheet::autoSizeColumn);
-                       }
-                       
-                       pageSheet.setActiveCell(CellAddress.A1);
-                   }
-               }
-           });
+        
+        IntStream.range(0, extractedPages.length)
+                 .forEach(pageIndex -> {
+                     var tables = extractedPages[pageIndex];
+                     
+                     IntStream.range(0, tables.size())
+                              .forEach(tableIndex -> writeTable(autosizeColumns, emptyColumnSkipMethod, emptyRowSkipMethod, rowComparisonFunction, 
+                                                                columnComparisonFunction, pageNamingFunction, excelOutput, pageIndex, tables, tableIndex));
        });
+    }
+
+    private static void writeTable(boolean autosizeColumns, int emptyColumnSkipMethod, int emptyRowSkipMethod, IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction,
+                                   PageNamingFunction pageNamingFunction, XSSFWorkbook excelOutput, int pageIndex, List<Table> tables, int tableIndex) {
+        
+        var rawRows = tables.get(tableIndex).getRows();
+        
+        if(rawRows.size() > 0) {
+            var rows = rawRows.stream()
+                              .map(k -> k.stream().map(RectangularTextContainer::getText).toArray(String[]::new))
+                              .toArray(String[][]::new);
+               
+            var removableColumnCountFromBegin = (emptyColumnSkipMethod & 1) == 0 ? 0 : calculateRemovableColumnCount(rows, RowWalkerFunction.walkForwards());
+            var removableColumnCountFromEnd = (emptyColumnSkipMethod & 2) == 0 ? 0 : calculateRemovableColumnCount(rows, RowWalkerFunction.walkBackwards());
+            var removableRowCountFromBegin = (emptyRowSkipMethod & 1) == 0 ? 0 : calculateRemovableRowCount(rows, RowProviderFunction.providingForwards());
+            var removableRowCountFromEnd = (emptyRowSkipMethod & 2) == 0 ? 0 : calculateRemovableRowCount(rows, RowProviderFunction.providingBackwards());
+            
+            if(rowComparisonFunction.test(rows.length - removableRowCountFromBegin - removableRowCountFromEnd) &&
+               columnComparisonFunction.test(rows[0].length - removableColumnCountFromBegin - removableColumnCountFromEnd)) {
+                
+                var pageSheet = excelOutput.createSheet(pageNamingFunction.apply(excelOutput, pageIndex, tableIndex));
+                
+                IntStream.range(removableRowCountFromBegin, rows.length - removableRowCountFromEnd)
+                         .forEach(rowIndex -> writeRow(rows, removableColumnCountFromBegin, removableColumnCountFromEnd, pageSheet, rowIndex));
+                   
+                if(autosizeColumns) {
+                    IntStream.range(0, pageSheet.getRow(0).getPhysicalNumberOfCells())
+                             .forEach(pageSheet::autoSizeColumn);
+                }
+                
+                pageSheet.setActiveCell(CellAddress.A1);
+            }
+        }
+    }
+
+    private static void writeRow(String[][] rows, int removableColumnCountFromBegin, int removableColumnCountFromEnd, XSSFSheet pageSheet, int rowIndex) {
+        var excelRow = pageSheet.createRow(rowIndex);
+           
+        IntStream.range(removableColumnCountFromBegin, rows[rowIndex].length - removableColumnCountFromEnd)
+                 .forEach(columnIndex -> excelRow.createCell(columnIndex).setCellValue(rows[rowIndex][columnIndex]));
     }
     
     private static boolean checkFileExtension(String filePath) {
@@ -220,13 +234,17 @@ public final class Main {
     //instead of walking columns downwards/upwards, avoiding jumping between arrays
     private static int calculateRemovableColumnCount(String[][] data, RowWalkerFunction walkerFunction) {
         return Arrays.stream(data)
-                     .mapToInt(columnData -> IntStream.range(0, columnData.length)
-                                                      .mapToObj(columnIndex -> walkerFunction.apply(columnData, columnIndex))
-                                                      .takeWhile(String::isBlank)
-                                                      .mapToInt(i -> 1)
-                                                      .sum())
+                     .mapToInt(columnData -> countRemovableColumnsInRow(walkerFunction, columnData))
                      .min()
                      .orElse(0);
+    }
+
+    private static int countRemovableColumnsInRow(RowWalkerFunction walkerFunction, String[] columnData) {
+        return IntStream.range(0, columnData.length)
+                        .mapToObj(columnIndex -> walkerFunction.apply(columnData, columnIndex))
+                        .takeWhile(String::isBlank)
+                        .mapToInt(i -> 1)
+                        .sum();
     }
     
     //This function walks rows forwards/backwards until it finds a row that is not fully empty
@@ -272,14 +290,6 @@ public final class Main {
         } catch (Exception e) {
             return "Unable to get app version from repository: https://github.com/Degubi/PDFTableExtractor";
         }
-    }
-    
-    private static void writeErrorInfo(Exception e) {
-        System.out.println("An error happened, check error.txt for details");
-
-        try(var exceptionOutput = new PrintStream("error.txt")){
-            e.printStackTrace(exceptionOutput);
-        } catch (FileNotFoundException e1) {}
     }
     
     private static<T> int indexOf(T element, T[] array) {
