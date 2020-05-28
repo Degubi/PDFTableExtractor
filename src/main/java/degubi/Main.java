@@ -3,7 +3,6 @@ package degubi;
 import static degubi.Settings.*;
 import static java.util.Spliterator.*;
 
-import com.google.gson.*;
 import java.awt.*;
 import java.io.*;
 import java.net.*;
@@ -16,6 +15,8 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.stream.*;
+import javax.json.*;
+import javax.json.bind.*;
 import javax.swing.*;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.poi.ss.util.*;
@@ -24,8 +25,8 @@ import technology.tabula.*;
 import technology.tabula.extractors.*;
 
 public final class Main {
-    public static final String VERSION = "1.1.0";
-    public static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    public static final String VERSION = "1.2.0";
+    public static final Jsonb json = JsonbBuilder.create(new JsonbConfig().withFormatting(Boolean.TRUE));
 
     @SuppressWarnings("boxing")
     public static void main(String[] args) throws Exception {
@@ -91,17 +92,18 @@ public final class Main {
             
             Runtime.getRuntime()
                    .addShutdownHook(new Thread(() -> {
-                       var settings = new JsonObject();
-                       settings.addProperty(SETTING_ROWS_PER_PAGE, (Integer) rowsPerPageSelector.getSelectedItem());
-                       settings.addProperty(SETTING_ROW_COMPARISON_METHOD, indexOf((String) rowComparisonSelector.getSelectedItem(), comparisonMethods));
-                       settings.addProperty(SETTING_COLUMNS_PER_PAGE, (Integer) columnsPerPageSelector.getSelectedItem());
-                       settings.addProperty(SETTING_COLUMN_COMPARISON_METHOD, indexOf((String) columnComparisonSelector.getSelectedItem(), comparisonMethods));
-                       settings.addProperty(SETTING_AUTOSIZE_COLUMNS, autosizeColumnsCheckBox.isSelected());
-                       settings.addProperty(SETTING_PARALLEL_FILEPROCESS, parallelCheckBox.isSelected());
-                       settings.addProperty(SETTING_PAGENAMING_METHOD, indexOf((String) pageNamingComboBox.getSelectedItem(), pageNamingMethods));
-                       settings.addProperty(SETTING_EMPTY_COLUMN_SKIP_METHOD, emptyColumnSkipGroup.getSelection().getMnemonic());
-                       settings.addProperty(SETTING_EMPTY_ROW_SKIP_METHOD, emptyRowSkipGroup.getSelection().getMnemonic());
-                       settings.addProperty(SETTING_VERSION_CHECKING_DISABLED, versionCheckingDisabledBox.isSelected());
+                       var settings = Json.createObjectBuilder()
+                                          .add(SETTING_ROWS_PER_PAGE, (Integer) rowsPerPageSelector.getSelectedItem())
+                                          .add(SETTING_ROW_COMPARISON_METHOD, indexOf((String) rowComparisonSelector.getSelectedItem(), comparisonMethods))
+                                          .add(SETTING_COLUMNS_PER_PAGE, (Integer) columnsPerPageSelector.getSelectedItem())
+                                          .add(SETTING_COLUMN_COMPARISON_METHOD, indexOf((String) columnComparisonSelector.getSelectedItem(), comparisonMethods))
+                                          .add(SETTING_AUTOSIZE_COLUMNS, autosizeColumnsCheckBox.isSelected())
+                                          .add(SETTING_PARALLEL_FILEPROCESS, parallelCheckBox.isSelected())
+                                          .add(SETTING_PAGENAMING_METHOD, indexOf((String) pageNamingComboBox.getSelectedItem(), pageNamingMethods))
+                                          .add(SETTING_EMPTY_COLUMN_SKIP_METHOD, emptyColumnSkipGroup.getSelection().getMnemonic())
+                                          .add(SETTING_EMPTY_ROW_SKIP_METHOD, emptyRowSkipGroup.getSelection().getMnemonic())
+                                          .add(SETTING_VERSION_CHECKING_DISABLED, versionCheckingDisabledBox.isSelected())
+                                          .build();
                        
                        saveSettings(settings);
                 }));
@@ -279,8 +281,8 @@ public final class Main {
                                  .build();
         try {
             var rawResponse = client.send(request, BodyHandlers.ofString()).body();
-            var parsedResponse = gson.fromJson(rawResponse, JsonObject.class);
-            var remoteVersion = parsedResponse.get("tag_name").getAsString();
+            var parsedResponse = json.fromJson(rawResponse, JsonObject.class);
+            var remoteVersion = parsedResponse.getString("tag_name");
             
             if(remoteVersion.equals(VERSION)) {
                 return "Local app version: " + VERSION + " is up to date!";
