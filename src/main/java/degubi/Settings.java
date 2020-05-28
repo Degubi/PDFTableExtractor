@@ -2,9 +2,9 @@ package degubi;
 
 import static java.nio.file.StandardOpenOption.*;
 
-import com.google.gson.*;
 import java.io.*;
 import java.nio.file.*;
+import javax.json.*;
 
 public final class Settings {
     public static final String SETTING_PARALLEL_FILEPROCESS = "parallelFileProcess";
@@ -30,52 +30,32 @@ public final class Settings {
     public static final int emptyRowSkipMethod;
     
     static {
-        var settingsObject = readSettings(Main.gson);
+        var settings = readSettings();
 
-        versionCheckingDisabled = getBooleanSetting(SETTING_VERSION_CHECKING_DISABLED, false, settingsObject);
-        rowsPerPage = getIntSetting(SETTING_ROWS_PER_PAGE, 1, settingsObject);
-        rowComparisonMethod = getIntSetting(SETTING_ROW_COMPARISON_METHOD, 2, settingsObject);
-        columnsPerPage = getIntSetting(SETTING_COLUMNS_PER_PAGE, 1, settingsObject);
-        columnComparisonMethod = getIntSetting(SETTING_COLUMN_COMPARISON_METHOD, 2, settingsObject);
-        parallelExtraction = getBooleanSetting(SETTING_PARALLEL_FILEPROCESS, false, settingsObject);
-        autosizeColumns = getBooleanSetting(SETTING_AUTOSIZE_COLUMNS, true, settingsObject);
-        pageNamingMethod = getIntSetting(SETTING_PAGENAMING_METHOD, 0, settingsObject);
-        emptyColumnSkipMethod = getIntSetting(SETTING_EMPTY_COLUMN_SKIP_METHOD, 0, settingsObject);
-        emptyRowSkipMethod = getIntSetting(SETTING_EMPTY_ROW_SKIP_METHOD, 0, settingsObject);
+        versionCheckingDisabled = settings.getBoolean(SETTING_VERSION_CHECKING_DISABLED, false);
+        rowsPerPage = settings.getInt(SETTING_ROWS_PER_PAGE, 1);
+        rowComparisonMethod = settings.getInt(SETTING_ROW_COMPARISON_METHOD, 2);
+        columnsPerPage = settings.getInt(SETTING_COLUMNS_PER_PAGE, 1);
+        columnComparisonMethod = settings.getInt(SETTING_COLUMN_COMPARISON_METHOD, 2);
+        parallelExtraction = settings.getBoolean(SETTING_PARALLEL_FILEPROCESS, false);
+        autosizeColumns = settings.getBoolean(SETTING_AUTOSIZE_COLUMNS, true);
+        pageNamingMethod = settings.getInt(SETTING_PAGENAMING_METHOD, 0);
+        emptyColumnSkipMethod = settings.getInt(SETTING_EMPTY_COLUMN_SKIP_METHOD, 0);
+        emptyRowSkipMethod = settings.getInt(SETTING_EMPTY_ROW_SKIP_METHOD, 0);
     }
     
-    private static boolean getBooleanSetting(String setting, boolean defaultValue, JsonObject settingsObject) {
-        var value = settingsObject.get(setting);
-        if(value != null) {
-            return value.getAsBoolean();
-        }
-        
-        settingsObject.addProperty(setting, Boolean.valueOf(defaultValue));
-        return defaultValue;
-    }
-    
-    private static int getIntSetting(String setting, int defaultValue, JsonObject settingsObject) {
-        var value = settingsObject.get(setting);
-        if(value != null) {
-            return value.getAsInt();
-        }
-        
-        settingsObject.addProperty(setting, Integer.valueOf(defaultValue));
-        return defaultValue;
-    }
-    
-    private static JsonObject readSettings(Gson gson) {
+    private static JsonObject readSettings() {
         try {
-            return gson.fromJson(Files.readString(Path.of("settings.json")), JsonObject.class);
+            return Main.json.fromJson(Files.readString(Path.of("settings.json")), JsonObject.class);
         } catch (IOException e) {
             System.out.println("No settings file, using default settings!");
-            return new JsonObject();
+            return JsonValue.EMPTY_JSON_OBJECT;
         }
     }
     
     public static void saveSettings(JsonObject settings) {
         try {
-            Files.writeString(Path.of("settings.json"), Main.gson.toJson(settings), WRITE, CREATE, TRUNCATE_EXISTING);
+            Files.writeString(Path.of("settings.json"), Main.json.toJson(settings), WRITE, CREATE, TRUNCATE_EXISTING);
         } catch (IOException e) {
             e.printStackTrace();
         }
