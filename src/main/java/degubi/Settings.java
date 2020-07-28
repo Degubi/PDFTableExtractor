@@ -44,7 +44,7 @@ public final class Settings {
     
     private static JsonObject readSettings() {
         try {
-            return Main.json.fromJson(Files.readString(Path.of("settings.json")), JsonObject.class);
+            return Main.json.fromJson(Files.readString(Path.of("app/settings.json")), JsonObject.class);
         } catch (IOException e) {
             System.out.println("No settings file, using default settings!");
             return JsonValue.EMPTY_JSON_OBJECT;
@@ -53,7 +53,7 @@ public final class Settings {
     
     public static void saveSettings(JsonObject settings) {
         try {
-            Files.writeString(Path.of("settings.json"), Main.json.toJson(settings));
+            Files.writeString(Path.of("app/settings.json"), Main.json.toJson(settings));
         } catch (IOException e) {
             e.printStackTrace();
         }
