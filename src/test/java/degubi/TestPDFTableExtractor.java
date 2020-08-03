@@ -11,11 +11,11 @@ import org.junit.jupiter.api.*;
 
 public final class TestPDFTableExtractor {
     
-    public static final PageNamingFunction countingNamingFunction = Main.getPageNamingFunction(0);
+    public final PageNamingFunction countingNamingFunction = Main.getPageNamingFunction(0);
     
-    public static final byte[] file1 = readFile("./src/test/resources/test1.pdf");
-    public static final byte[] file2 = readFile("./src/test/resources/test2.pdf");
-    public static final byte[] file3 = readFile("./src/test/resources/test3.pdf");
+    public final byte[] file1 = readFile("./src/test/resources/test1.pdf");
+    public final byte[] file2 = readFile("./src/test/resources/test2.pdf");
+    public final byte[] file3 = readFile("./src/test/resources/test3.pdf");
     
     @Test
     public void test1NormalExtraction() throws Exception {

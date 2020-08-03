@@ -35,30 +35,25 @@ public final class Main {
             
             var oneThruTen = IntStream.rangeClosed(1, 10).boxed().toArray(Integer[]::new);
             var comparisonMethods = new String[] {"less/equal", "equal", "greater/equal"};
-            var pageNamingMethods = new String[] {"counting", "pageOrdinal-tableOrdinal"};
             
-            var rowsPerPageSelector = Components.newComboBox(320, 50, 50, rowsPerPage, oneThruTen);
-            var rowComparisonSelector = Components.newComboBox(160, 50, 100, comparisonMethods[rowComparisonMethod], comparisonMethods);
-            var columnsPerPageSelector = Components.newComboBox(320, 90, 50, columnsPerPage, oneThruTen);
-            var columnComparisonSelector = Components.newComboBox(160, 90, 100, comparisonMethods[columnComparisonMethod], comparisonMethods);
-            var pageNamingComboBox = Components.newComboBox(140, 240, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
-            var autosizeColumnsCheckBox = Components.newCheckBox(15, 280, "Autosize Columns After Extraction", autosizeColumns);
-            var parallelCheckBox = Components.newCheckBox(15, 360, "Enable Parallel File Processing", parallelExtraction);
-            var versionCheckingDisabledBox = Components.newCheckBox(15, 440, "Disable Version Checking", versionCheckingDisabled);
+            var rowsPerPageSelector = Components.newComboBox(360, 50, 50, rowsPerPage, oneThruTen);
+            var rowComparisonSelector = Components.newComboBox(200, 50, 100, comparisonMethods[rowComparisonMethod], comparisonMethods);
+            var columnsPerPageSelector = Components.newComboBox(360, 90, 50, columnsPerPage, oneThruTen);
+            var columnComparisonSelector = Components.newComboBox(200, 90, 100, comparisonMethods[columnComparisonMethod], comparisonMethods);
             
             var panel = new JPanel(null);
             var bigBaldFont = new Font("SansSerif", Font.BOLD, 20);
             var emptyColumnSkipGroup = new ButtonGroup();
             var emptyRowSkipGroup = new ButtonGroup();
-
+            
             Components.addSettingsSection("Page Filters", 10, panel, bigBaldFont);
-            panel.add(Components.newLabel(20, 50, "Keep pages with rows:"));
+            panel.add(Components.newLabel(20, 50, "Keep pages with number of rows"));
             panel.add(rowsPerPageSelector);
-            panel.add(Components.newLabel(270, 50, "than/to"));
+            panel.add(Components.newLabel(310, 50, "than/to"));
             panel.add(rowComparisonSelector);
-            panel.add(Components.newLabel(20, 90, "Keep pages with columns:"));
+            panel.add(Components.newLabel(20, 90, "Keep pages with number of columns"));
             panel.add(columnsPerPageSelector);
-            panel.add(Components.newLabel(270, 90, "than/to"));
+            panel.add(Components.newLabel(310, 90, "than/to"));
             panel.add(columnComparisonSelector);
             panel.add(Components.newLabel(20, 130, "Skip empty rows:"));
             panel.add(Components.newRadioButton(155, 130, 50, "None", 0, emptyRowSkipMethod == 0, emptyRowSkipGroup));
@@ -71,15 +66,22 @@ public final class Main {
             panel.add(Components.newRadioButton(300, 160, 60, "Trailing", 2, emptyColumnSkipMethod == 2, emptyColumnSkipGroup));
             panel.add(Components.newRadioButton(380, 160, 55, "Both", 3, emptyColumnSkipMethod == 3, emptyColumnSkipGroup));
             
-            Components.addSettingsSection("Page Settings", 200, panel, bigBaldFont);
+            var pageNamingMethods = new String[] {"counting", "pageOrdinal-tableOrdinal"};
+            var pageNamingComboBox = Components.newComboBox(140, 240, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
+            var autosizeColumnsCheckBox = Components.newCheckBox(15, 280, "Autosize Columns After Extraction", autosizeColumns);
+            
+            Components.addSettingsSection("Page Output", 200, panel, bigBaldFont);
             panel.add(Components.newLabel(20, 240, "Page naming strategy: "));
             panel.add(pageNamingComboBox);
             panel.add(autosizeColumnsCheckBox);
             
-            Components.addSettingsSection("File Settings", 320, panel, bigBaldFont);
-            panel.add(parallelCheckBox);
+            var parallelCheckBox = Components.newCheckBox(15, 360, "Enable Parallel File Processing", parallelExtraction);
+            var pdfContextMenuCheckBox = Components.newCheckBox(15, 390, "Enable PDF extraction context menu", contextMenuOptionEnabled);
+            var versionCheckingDisabledBox = Components.newCheckBox(15, 420, "Disable Version Checking", versionCheckingDisabled);
             
-            Components.addSettingsSection("App Settings", 400, panel, bigBaldFont);
+            Components.addSettingsSection("App Settings", 320, panel, bigBaldFont);
+            panel.add(parallelCheckBox);
+            panel.add(pdfContextMenuCheckBox);
             panel.add(versionCheckingDisabledBox);
             
             var frame = new JFrame("PDF Table Extractor - " + VERSION);
@@ -93,9 +95,9 @@ public final class Main {
             Runtime.getRuntime()
                    .addShutdownHook(new Thread(() -> {
                        var settings = Json.createObjectBuilder()
-                                          .add(SETTING_ROWS_PER_PAGE, (Integer) rowsPerPageSelector.getSelectedItem())
+                                          .add(SETTING_ROWS_PER_PAGE, (int) rowsPerPageSelector.getSelectedItem())
                                           .add(SETTING_ROW_COMPARISON_METHOD, indexOf((String) rowComparisonSelector.getSelectedItem(), comparisonMethods))
-                                          .add(SETTING_COLUMNS_PER_PAGE, (Integer) columnsPerPageSelector.getSelectedItem())
+                                          .add(SETTING_COLUMNS_PER_PAGE, (int) columnsPerPageSelector.getSelectedItem())
                                           .add(SETTING_COLUMN_COMPARISON_METHOD, indexOf((String) columnComparisonSelector.getSelectedItem(), comparisonMethods))
                                           .add(SETTING_AUTOSIZE_COLUMNS, autosizeColumnsCheckBox.isSelected())
                                           .add(SETTING_PARALLEL_FILEPROCESS, parallelCheckBox.isSelected())
@@ -103,9 +105,10 @@ public final class Main {
                                           .add(SETTING_EMPTY_COLUMN_SKIP_METHOD, emptyColumnSkipGroup.getSelection().getMnemonic())
                                           .add(SETTING_EMPTY_ROW_SKIP_METHOD, emptyRowSkipGroup.getSelection().getMnemonic())
                                           .add(SETTING_VERSION_CHECKING_DISABLED, versionCheckingDisabledBox.isSelected())
+                                          .add(SETTING_CONTEXT_MENU_OPTION_ENABLED, pdfContextMenuCheckBox.isSelected())
                                           .build();
                        
-                       saveSettings(settings);
+                       saveSettings(settings, pdfContextMenuCheckBox.isSelected());
                 }));
         }else{
             var versionCheckResult = CompletableFuture.supplyAsync(Main::createVersionCheckingTask);
@@ -124,7 +127,12 @@ public final class Main {
                   .filter(Main::checkFileExtension)
                   .forEach(inputFile -> handlePDFExtraction(rowComparisonFunction, columnComparisonFunction, pageNamingFunction, inputFile));
             
-            System.out.println(versionCheckResult.get());
+            try{
+                System.out.println(versionCheckResult.get(15, TimeUnit.SECONDS));
+            }catch(TimeoutException e){
+                System.out.println("Version checking timed out... :/");
+            }
+            
             System.out.print("All done, press enter");
             System.console().readLine();
         }
@@ -190,7 +198,7 @@ public final class Main {
             var rows = rawRows.stream()
                               .map(k -> k.stream().map(RectangularTextContainer::getText).toArray(String[]::new))
                               .toArray(String[][]::new);
-               
+            
             var removableColumnCountFromBegin = (emptyColumnSkipMethod & 1) == 0 ? 0 : calculateRemovableColumnCount(rows, RowWalkerFunction.walkForwards());
             var removableColumnCountFromEnd = (emptyColumnSkipMethod & 2) == 0 ? 0 : calculateRemovableColumnCount(rows, RowWalkerFunction.walkBackwards());
             var removableRowCountFromBegin = (emptyRowSkipMethod & 1) == 0 ? 0 : calculateRemovableRowCount(rows, RowProviderFunction.providingForwards());
@@ -203,7 +211,7 @@ public final class Main {
                 
                 IntStream.range(removableRowCountFromBegin, rows.length - removableRowCountFromEnd)
                          .forEach(rowIndex -> writeRow(rows, removableColumnCountFromBegin, removableColumnCountFromEnd, pageSheet, rowIndex));
-                   
+                
                 if(autosizeColumns) {
                     IntStream.range(0, pageSheet.getRow(0).getPhysicalNumberOfCells())
                              .forEach(pageSheet::autoSizeColumn);
@@ -216,7 +224,7 @@ public final class Main {
 
     private static void writeRow(String[][] rows, int removableColumnCountFromBegin, int removableColumnCountFromEnd, XSSFSheet pageSheet, int rowIndex) {
         var excelRow = pageSheet.createRow(rowIndex);
-           
+        
         IntStream.range(removableColumnCountFromBegin, rows[rowIndex].length - removableColumnCountFromEnd)
                  .forEach(columnIndex -> excelRow.createCell(columnIndex).setCellValue(rows[rowIndex][columnIndex]));
     }

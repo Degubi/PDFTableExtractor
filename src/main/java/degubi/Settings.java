@@ -14,9 +14,11 @@ public final class Settings {
     public static final String SETTING_PAGENAMING_METHOD = "pageNamingMethod";
     public static final String SETTING_EMPTY_COLUMN_SKIP_METHOD = "emptyColumnSkipMethod";
     public static final String SETTING_EMPTY_ROW_SKIP_METHOD = "emptyRowSkipMethod";
+    public static final String SETTING_CONTEXT_MENU_OPTION_ENABLED = "contextMenuOptionEnabled";
     public static final String SETTING_VERSION_CHECKING_DISABLED = "versionCheckingDisabled";
     
     public static final boolean versionCheckingDisabled;
+    public static final boolean contextMenuOptionEnabled;
     public static final int rowsPerPage;
     public static final int rowComparisonMethod;
     public static final int columnsPerPage;
@@ -40,24 +42,59 @@ public final class Settings {
         pageNamingMethod = settings.getInt(SETTING_PAGENAMING_METHOD, 0);
         emptyColumnSkipMethod = settings.getInt(SETTING_EMPTY_COLUMN_SKIP_METHOD, 0);
         emptyRowSkipMethod = settings.getInt(SETTING_EMPTY_ROW_SKIP_METHOD, 0);
+        contextMenuOptionEnabled = settings.getBoolean(SETTING_CONTEXT_MENU_OPTION_ENABLED, false);
     }
     
     private static JsonObject readSettings() {
+        var settingsFilePath = Path.of("app/settings.json");
+        
         try {
-            return Main.json.fromJson(Files.readString(Path.of("app/settings.json")), JsonObject.class);
+            return Main.json.fromJson(Files.readString(settingsFilePath), JsonObject.class);
         } catch (IOException e) {
             System.out.println("No settings file, using default settings!");
+            
+            try {
+                Files.writeString(settingsFilePath, "{}");
+            } catch (IOException e1) {}
+            
             return JsonValue.EMPTY_JSON_OBJECT;
         }
     }
     
-    public static void saveSettings(JsonObject settings) {
+    public static void saveSettings(JsonObject settings, boolean createContextMenu) {
         try {
             Files.writeString(Path.of("app/settings.json"), Main.json.toJson(settings));
-        } catch (IOException e) {
+            
+            var regFileTemplate = createContextMenu ? ADD_CONTEXT_TEMPLATE : REMOVE_CONTEXT_TEMPLATE;
+            var workDir = Path.of("").toAbsolutePath().toString().replace("\\", "\\\\");
+            var regFilePath = Path.of("app/regToRun.reg").toAbsolutePath();
+            
+            Files.writeString(regFilePath, regFileTemplate.replace("%W", workDir));
+            
+            try {
+                Runtime.getRuntime().exec("cmd /c regedit.exe /S " + regFilePath).waitFor();
+                Files.delete(regFilePath);
+            }catch (IOException e) {
+                System.out.println("Unable to add/remove context menu... :/\n" +
+                                   "To do it manually go to the 'app' folder of the application and run the 'regToRun.reg' file manually");
+            }
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
     }
     
     private Settings() {}
+    
+    
+    // TODO: Make these fuckers raw strings...
+    private static final String ADD_CONTEXT_TEMPLATE = "Windows Registry Editor Version 5.00\n" +
+                                                       "[HKEY_CLASSES_ROOT\\SystemFileAssociations\\.pdf\\shell\\PDFTableExtractor]\n" +
+                                                       "@=\"Extract Tables to Excel\"\n" +
+                                                       "\"Icon\"=\"\\\"%W\\\\PDFTableExtractor.ico\\\"\"\n" +
+                                                       
+                                                       "[HKEY_CLASSES_ROOT\\SystemFileAssociations\\.pdf\\shell\\PDFTableExtractor\\Command]\n" +
+                                                       "@=\"cmd /c cd \\\"%W\\\" && \\\"%W\\\\PDFTableExtractor.exe\\\" \\\"%1\\\"\"";
+    
+    private static final String REMOVE_CONTEXT_TEMPLATE = "Windows Registry Editor Version 5.00\n" +
+                                                          "[-HKEY_CLASSES_ROOT\\SystemFileAssociations\\.pdf\\shell\\PDFTableExtractor]";
 }
