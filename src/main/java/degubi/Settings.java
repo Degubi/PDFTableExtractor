@@ -2,7 +2,7 @@ package degubi;
 
 import java.io.*;
 import java.nio.file.*;
-import javax.json.*;
+import jakarta.json.*;
 
 public final class Settings {
     public static final String SETTING_PARALLEL_FILEPROCESS = "parallelFileProcess";

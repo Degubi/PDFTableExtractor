@@ -3,8 +3,8 @@ module degubi.pdftableextractor {
     requires java.sql;
     requires java.net.http;
 
-    requires java.json.bind;
-    requires java.json;
+    requires jakarta.json;
+    requires jakarta.json.bind;
 
     requires pdfbox;
     requires poi;
