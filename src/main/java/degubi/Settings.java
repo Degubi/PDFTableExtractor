@@ -46,7 +46,7 @@ public final class Settings {
     }
 
     private static JsonObject readSettings() {
-        var settingsFilePath = Path.of("app/settings.json");
+        var settingsFilePath = Path.of("settings.json");
 
         try {
             return Main.json.fromJson(Files.readString(settingsFilePath), JsonObject.class);
@@ -63,11 +63,11 @@ public final class Settings {
 
     public static void saveSettings(JsonObject settings, boolean createContextMenu) {
         try {
-            Files.writeString(Path.of("app/settings.json"), Main.json.toJson(settings));
+            Files.writeString(Path.of("settings.json"), Main.json.toJson(settings));
 
             var regFileTemplate = createContextMenu ? ADD_CONTEXT_TEMPLATE : REMOVE_CONTEXT_TEMPLATE;
             var workDir = Path.of("").toAbsolutePath().toString().replace("\\", "\\\\");
-            var regFilePath = Path.of("app/regToRun.reg").toAbsolutePath();
+            var regFilePath = Path.of("regToRun.reg").toAbsolutePath();
 
             Files.writeString(regFilePath, regFileTemplate.replace("%W", workDir));
 

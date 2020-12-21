@@ -25,7 +25,7 @@ import technology.tabula.*;
 import technology.tabula.extractors.*;
 
 public final class Main {
-    public static final String VERSION = "1.2.0";
+    public static final String VERSION = "1.2.1";
     public static final Jsonb json = JsonbBuilder.create(new JsonbConfig().withFormatting(Boolean.TRUE));
 
     @SuppressWarnings("boxing")
