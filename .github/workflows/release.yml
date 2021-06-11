@@ -2,7 +2,7 @@ name: Build new Release
 
 on:
   release:
-    types: [created]
+    types: [ created ]
 
 jobs:
   build:
@@ -13,24 +13,19 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v1
         with:
-          java-version: 15
+          java-version: 16
 
-      - name: Generate runtime
-        run: jlink --output ./runtime/ --no-man-pages --no-header-files --add-modules java.base,java.desktop,java.sql,java.net.http,jdk.crypto.ec --compress=2
-
-      - name: Copy libraries
-        run: mvn dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=resources
-
-      - name: Create jar
-        run: mvn package && move target/PDFTableExtractor-1.0.jar resources/PDFTableExtractor.jar
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
 
       - name: Create installer
-        run: jpackage --runtime-image runtime --input resources --main-class degubi.Main --main-jar PDFTableExtractor.jar --name PDFTableExtractor --vendor Degubi --description PDFTableExtractor --icon icon.ico --win-per-user-install --win-dir-chooser --win-shortcut --win-console
-      
+        run: python build.py
+
       - name: Upload binary to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: PDFTableExtractor-1.0.exe
-          asset_name: PDFTableExtractor.exe
+          file: PDFTableExtractorInstaller.exe
           tag: ${{ github.ref }}

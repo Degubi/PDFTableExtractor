@@ -3,28 +3,25 @@ package degubi;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.*;
-import java.nio.file.*;
 import java.util.stream.*;
 import org.apache.pdfbox.pdmodel.*;
-import org.apache.poi.xssf.usermodel.*;
 import org.junit.jupiter.api.*;
 
 public final class TestPDFTableExtractor {
 
     public final PageNamingFunction countingNamingFunction = Main.getPageNamingFunction(0);
 
-    public final byte[] file1 = readFile("./src/test/resources/test1.pdf");
-    public final byte[] file2 = readFile("./src/test/resources/test2.pdf");
-    public final byte[] file3 = readFile("./src/test/resources/test3.pdf");
+    public final File file1 = new File("./src/test/resources/test1.pdf");
+    public final File file2 = new File("./src/test/resources/test2.pdf");
+    public final File file3 = new File("./src/test/resources/test3.pdf");
 
     @Test
     public void test1NormalExtraction() throws Exception {
         var keepAllpagesComparisonFunction = Main.getComparisonFunction(2, 1);
 
         try(var pdfInput = PDDocument.load(file1);
-            var excelOutput = new XSSFWorkbook()){
+            var excelOutput = Main.extractPDF(false, 0, 0, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput)){
 
-            Main.extractPDF(false, 0, 0, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput, excelOutput);
             assertEquals(3, excelOutput.getNumberOfSheets());
 
             var firstSheet = excelOutput.getSheetAt(0);
@@ -49,9 +46,8 @@ public final class TestPDFTableExtractor {
         var keepAllpagesComparisonFunction = Main.getComparisonFunction(2, 1);
 
         try(var pdfInput = PDDocument.load(file1);
-            var excelOutput = new XSSFWorkbook()){
+            var excelOutput = Main.extractPDF(false, 3, 3, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput)){
 
-            Main.extractPDF(false, 3, 3, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput, excelOutput);
             assertEquals(3, excelOutput.getNumberOfSheets());
 
             var firstSheet = excelOutput.getSheetAt(0);
@@ -76,9 +72,8 @@ public final class TestPDFTableExtractor {
         var keepAllpagesComparisonFunction = Main.getComparisonFunction(2, 1);
 
         try(var pdfInput = PDDocument.load(file2);
-            var excelOutput = new XSSFWorkbook()){
+            var excelOutput = Main.extractPDF(false, 0, 0, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput)){
 
-            Main.extractPDF(false, 0, 0, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput, excelOutput);
             assertEquals(2, excelOutput.getNumberOfSheets());
 
             IntStream.rangeClosed(0, 1)
@@ -95,9 +90,8 @@ public final class TestPDFTableExtractor {
         var keepAllpagesComparisonFunction = Main.getComparisonFunction(2, 1);
 
         try(var pdfInput = PDDocument.load(file2);
-            var excelOutput = new XSSFWorkbook()){
+            var excelOutput = Main.extractPDF(false, 3, 3, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput)){
 
-            Main.extractPDF(false, 3, 3, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput, excelOutput);
             assertEquals(2, excelOutput.getNumberOfSheets());
 
             IntStream.rangeClosed(0, 1)
@@ -114,9 +108,8 @@ public final class TestPDFTableExtractor {
         var keepAllpagesComparisonFunction = Main.getComparisonFunction(2, 1);
 
         try(var pdfInput = PDDocument.load(file3);
-            var excelOutput = new XSSFWorkbook()){
+            var excelOutput = Main.extractPDF(false, 0, 0, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput)){
 
-            Main.extractPDF(false, 0, 0, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput, excelOutput);
             assertEquals(5, excelOutput.getNumberOfSheets());
 
             IntStream.rangeClosed(0, 2)
@@ -141,9 +134,8 @@ public final class TestPDFTableExtractor {
         var keepAllpagesComparisonFunction = Main.getComparisonFunction(2, 1);
 
         try(var pdfInput = PDDocument.load(file3);
-            var excelOutput = new XSSFWorkbook()){
+            var excelOutput = Main.extractPDF(false, 2, 0, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput)){
 
-            Main.extractPDF(false, 2, 0, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput, excelOutput);
             assertEquals(5, excelOutput.getNumberOfSheets());
 
             IntStream.rangeClosed(0, 2)
@@ -168,9 +160,8 @@ public final class TestPDFTableExtractor {
         var keepAllpagesComparisonFunction = Main.getComparisonFunction(2, 1);
 
         try(var pdfInput = PDDocument.load(file3);
-            var excelOutput = new XSSFWorkbook()){
+            var excelOutput = Main.extractPDF(false, 0, 2, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput)){
 
-            Main.extractPDF(false, 0, 2, keepAllpagesComparisonFunction, keepAllpagesComparisonFunction, countingNamingFunction, pdfInput, excelOutput);
             assertEquals(5, excelOutput.getNumberOfSheets());
 
             IntStream.rangeClosed(0, 2)
@@ -187,14 +178,6 @@ public final class TestPDFTableExtractor {
             var fifthSheet = excelOutput.getSheetAt(4);
             assertEquals(1, fifthSheet.getPhysicalNumberOfRows());
             assertEquals(6, fifthSheet.getRow(0).getPhysicalNumberOfCells());
-        }
-    }
-
-    private static byte[] readFile(String file) {
-        try {
-            return Files.readAllBytes(Path.of(file));
-        } catch (IOException e) {
-            return new byte[0];
         }
     }
 }

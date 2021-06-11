@@ -14,6 +14,8 @@ public final class Settings {
     public static final String SETTING_PAGENAMING_METHOD = "pageNamingMethod";
     public static final String SETTING_EMPTY_COLUMN_SKIP_METHOD = "emptyColumnSkipMethod";
     public static final String SETTING_EMPTY_ROW_SKIP_METHOD = "emptyRowSkipMethod";
+    public static final String SETTING_OUTPUT_DIRECTORY_METHOD = "outputDirectoryMethod";
+    public static final String SETTING_OUTPUT_DIRECTORY_CUSTOM = "customOutputDirectory";
     public static final String SETTING_CONTEXT_MENU_OPTION_ENABLED = "contextMenuOptionEnabled";
     public static final String SETTING_VERSION_CHECKING_DISABLED = "versionCheckingDisabled";
 
@@ -27,6 +29,8 @@ public final class Settings {
     public static final boolean autosizeColumns;
     public static final int pageNamingMethod;
     public static final int emptyColumnSkipMethod;
+    public static final int outputDirectoryMehod;
+    public static final String userSelectedOutputDirectory;
     public static final int emptyRowSkipMethod;
 
     static {
@@ -41,7 +45,9 @@ public final class Settings {
         autosizeColumns = settings.getBoolean(SETTING_AUTOSIZE_COLUMNS, true);
         pageNamingMethod = settings.getInt(SETTING_PAGENAMING_METHOD, 0);
         emptyColumnSkipMethod = settings.getInt(SETTING_EMPTY_COLUMN_SKIP_METHOD, 0);
+        outputDirectoryMehod = settings.getInt(SETTING_OUTPUT_DIRECTORY_METHOD, 0);
         emptyRowSkipMethod = settings.getInt(SETTING_EMPTY_ROW_SKIP_METHOD, 0);
+        userSelectedOutputDirectory = settings.getString(SETTING_OUTPUT_DIRECTORY_CUSTOM, "");
         contextMenuOptionEnabled = settings.getBoolean(SETTING_CONTEXT_MENU_OPTION_ENABLED, false);
     }
 
@@ -61,7 +67,7 @@ public final class Settings {
         }
     }
 
-    public static void saveSettings(JsonObject settings, boolean createContextMenu) {
+    public static void save(JsonObject settings, boolean createContextMenu) {
         try {
             Files.writeString(Path.of("settings.json"), Main.json.toJson(settings));
 
@@ -86,15 +92,18 @@ public final class Settings {
     private Settings() {}
 
 
-    // TODO: Make these fuckers raw strings...
-    private static final String ADD_CONTEXT_TEMPLATE = "Windows Registry Editor Version 5.00\n" +
-                                                       "[HKEY_CLASSES_ROOT\\SystemFileAssociations\\.pdf\\shell\\PDFTableExtractor]\n" +
-                                                       "@=\"Extract Tables to Excel\"\n" +
-                                                       "\"Icon\"=\"\\\"%W\\\\PDFTableExtractor.ico\\\"\"\n" +
+    private static final String ADD_CONTEXT_TEMPLATE = """
+                                                       Windows Registry Editor Version 5.00
+                                                       [HKEY_CLASSES_ROOT\\SystemFileAssociations\\.pdf\\shell\\PDFTableExtractor]
+                                                       @="Extract Tables to Excel"
+                                                       "Icon"="\\"%W\\\\PDFTableExtractor.ico\\""
 
-                                                       "[HKEY_CLASSES_ROOT\\SystemFileAssociations\\.pdf\\shell\\PDFTableExtractor\\Command]\n" +
-                                                       "@=\"cmd /c cd \\\"%W\\\" && \\\"%W\\\\PDFTableExtractor.exe\\\" \\\"%1\\\"\"";
+                                                       [HKEY_CLASSES_ROOT\\SystemFileAssociations\\.pdf\\shell\\PDFTableExtractor\\Command]
+                                                       @="cmd /c cd \\"%W\\" && \\"%W\\\\PDFTableExtractor.exe\\" \\"%1\\""
+                                                       """;
 
-    private static final String REMOVE_CONTEXT_TEMPLATE = "Windows Registry Editor Version 5.00\n" +
-                                                          "[-HKEY_CLASSES_ROOT\\SystemFileAssociations\\.pdf\\shell\\PDFTableExtractor]";
+    private static final String REMOVE_CONTEXT_TEMPLATE = """
+                                                          Windows Registry Editor Version 5.00
+                                                          [-HKEY_CLASSES_ROOT\\SystemFileAssociations\\.pdf\\shell\\PDFTableExtractor]
+                                                          """;
 }

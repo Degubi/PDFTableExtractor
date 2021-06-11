@@ -3,6 +3,8 @@ package degubi;
 import static degubi.Settings.*;
 import static java.util.Spliterator.*;
 
+import jakarta.json.*;
+import jakarta.json.bind.*;
 import java.awt.*;
 import java.io.*;
 import java.net.*;
@@ -15,8 +17,6 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.stream.*;
-import jakarta.json.*;
-import jakarta.json.bind.*;
 import javax.swing.*;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.poi.ss.util.*;
@@ -25,131 +25,69 @@ import technology.tabula.*;
 import technology.tabula.extractors.*;
 
 public final class Main {
-    public static final String VERSION = "1.2.1";
+    public static final String VERSION = "1.3.0";
     public static final Jsonb json = JsonbBuilder.create(new JsonbConfig().withFormatting(Boolean.TRUE));
 
-    @SuppressWarnings("boxing")
     public static void main(String[] args) throws Exception {
+        var versionCheckResultMessage = CompletableFuture.supplyAsync(Main::getVersionCheckResultMessage);
+
         if(args.length == 0) {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 
-            var oneThruTen = IntStream.rangeClosed(1, 10).boxed().toArray(Integer[]::new);
-            var comparisonMethods = new String[] {"less/equal", "equal", "greater/equal"};
-
-            var rowsPerPageSelector = Components.newComboBox(360, 50, 50, rowsPerPage, oneThruTen);
-            var rowComparisonSelector = Components.newComboBox(200, 50, 100, comparisonMethods[rowComparisonMethod], comparisonMethods);
-            var columnsPerPageSelector = Components.newComboBox(360, 90, 50, columnsPerPage, oneThruTen);
-            var columnComparisonSelector = Components.newComboBox(200, 90, 100, comparisonMethods[columnComparisonMethod], comparisonMethods);
-
-            var panel = new JPanel(null);
-            var bigBaldFont = new Font("SansSerif", Font.BOLD, 20);
-            var emptyColumnSkipGroup = new ButtonGroup();
-            var emptyRowSkipGroup = new ButtonGroup();
-
-            Components.addSettingsSection("Page Filters", 10, panel, bigBaldFont);
-            panel.add(Components.newLabel(20, 50, "Keep pages with number of rows"));
-            panel.add(rowsPerPageSelector);
-            panel.add(Components.newLabel(310, 50, "than/to"));
-            panel.add(rowComparisonSelector);
-            panel.add(Components.newLabel(20, 90, "Keep pages with number of columns"));
-            panel.add(columnsPerPageSelector);
-            panel.add(Components.newLabel(310, 90, "than/to"));
-            panel.add(columnComparisonSelector);
-            panel.add(Components.newLabel(20, 130, "Skip empty rows:"));
-            panel.add(Components.newRadioButton(155, 130, 50, "None", 0, emptyRowSkipMethod == 0, emptyRowSkipGroup));
-            panel.add(Components.newRadioButton(220, 130, 65, "Leading", 1, emptyRowSkipMethod == 1, emptyRowSkipGroup));
-            panel.add(Components.newRadioButton(300, 130, 60, "Trailing", 2, emptyRowSkipMethod == 2, emptyRowSkipGroup));
-            panel.add(Components.newRadioButton(380, 130, 55, "Both", 3, emptyRowSkipMethod == 3, emptyRowSkipGroup));
-            panel.add(Components.newLabel(20, 160, "Skip empty columns:"));
-            panel.add(Components.newRadioButton(155, 160, 50, "None", 0, emptyColumnSkipMethod == 0, emptyColumnSkipGroup));
-            panel.add(Components.newRadioButton(220, 160, 65, "Leading", 1, emptyColumnSkipMethod == 1, emptyColumnSkipGroup));
-            panel.add(Components.newRadioButton(300, 160, 60, "Trailing", 2, emptyColumnSkipMethod == 2, emptyColumnSkipGroup));
-            panel.add(Components.newRadioButton(380, 160, 55, "Both", 3, emptyColumnSkipMethod == 3, emptyColumnSkipGroup));
-
-            var pageNamingMethods = new String[] {"counting", "pageOrdinal-tableOrdinal"};
-            var pageNamingComboBox = Components.newComboBox(140, 240, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
-            var autosizeColumnsCheckBox = Components.newCheckBox(15, 280, "Autosize Columns After Extraction", autosizeColumns);
-
-            Components.addSettingsSection("Page Output", 200, panel, bigBaldFont);
-            panel.add(Components.newLabel(20, 240, "Page naming strategy: "));
-            panel.add(pageNamingComboBox);
-            panel.add(autosizeColumnsCheckBox);
-
-            var parallelCheckBox = Components.newCheckBox(15, 360, "Enable Parallel File Processing", parallelExtraction);
-            var pdfContextMenuCheckBox = Components.newCheckBox(15, 390, "Enable PDF extraction context menu", contextMenuOptionEnabled);
-            var versionCheckingDisabledBox = Components.newCheckBox(15, 420, "Disable Version Checking", versionCheckingDisabled);
-
-            Components.addSettingsSection("App Settings", 320, panel, bigBaldFont);
-            panel.add(parallelCheckBox);
-            panel.add(pdfContextMenuCheckBox);
-            panel.add(versionCheckingDisabledBox);
-
-            var frame = new JFrame("PDF Table Extractor - " + VERSION);
-            frame.setContentPane(panel);
-            frame.setSize(600, 550);
+            var frame = new JFrame("PDF Table Extractor Settings");
+            frame.setContentPane(Components.createSettingsPanel());
+            frame.setSize(600, 630);
             frame.setLocationRelativeTo(null);
+            frame.setIconImage(Toolkit.getDefaultToolkit().createImage(Main.class.getResource("/app.png")));
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.setResizable(false);
             frame.setVisible(true);
 
-            Runtime.getRuntime()
-                   .addShutdownHook(new Thread(() -> {
-                       var settings = Json.createObjectBuilder()
-                                          .add(SETTING_ROWS_PER_PAGE, (int) rowsPerPageSelector.getSelectedItem())
-                                          .add(SETTING_ROW_COMPARISON_METHOD, indexOf((String) rowComparisonSelector.getSelectedItem(), comparisonMethods))
-                                          .add(SETTING_COLUMNS_PER_PAGE, (int) columnsPerPageSelector.getSelectedItem())
-                                          .add(SETTING_COLUMN_COMPARISON_METHOD, indexOf((String) columnComparisonSelector.getSelectedItem(), comparisonMethods))
-                                          .add(SETTING_AUTOSIZE_COLUMNS, autosizeColumnsCheckBox.isSelected())
-                                          .add(SETTING_PARALLEL_FILEPROCESS, parallelCheckBox.isSelected())
-                                          .add(SETTING_PAGENAMING_METHOD, indexOf((String) pageNamingComboBox.getSelectedItem(), pageNamingMethods))
-                                          .add(SETTING_EMPTY_COLUMN_SKIP_METHOD, emptyColumnSkipGroup.getSelection().getMnemonic())
-                                          .add(SETTING_EMPTY_ROW_SKIP_METHOD, emptyRowSkipGroup.getSelection().getMnemonic())
-                                          .add(SETTING_VERSION_CHECKING_DISABLED, versionCheckingDisabledBox.isSelected())
-                                          .add(SETTING_CONTEXT_MENU_OPTION_ENABLED, pdfContextMenuCheckBox.isSelected())
-                                          .build();
-
-                       saveSettings(settings, pdfContextMenuCheckBox.isSelected());
-                }));
+            showVersionCheckResult(versionCheckResultMessage);
         }else{
-            var versionCheckResult = CompletableFuture.supplyAsync(Main::createVersionCheckingTask);
-
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
 
             var rowComparisonFunction = getComparisonFunction(rowComparisonMethod, rowsPerPage);
             var columnComparisonFunction = getComparisonFunction(columnComparisonMethod, columnsPerPage);
             var pageNamingFunction = getPageNamingFunction(pageNamingMethod);
+            var outputPathCreatorFunction = getOutputPathCreatorFunction(outputDirectoryMehod);
             var pdfSrc = parallelExtraction ? Arrays.stream(args).parallel()
                                             : Arrays.stream(args);
             pdfSrc.map(Path::of)
                   .map(Path::toAbsolutePath)
                   .map(Path::toString)
                   .peek(k -> System.out.println("Opening file: " + k))
-                  .filter(Main::checkFileExtension)
-                  .forEach(inputFile -> handlePDFExtraction(rowComparisonFunction, columnComparisonFunction, pageNamingFunction, inputFile));
+                  .filter(Main::checkIsPdfFile)
+                  .forEach(inputFile -> handlePDFExtraction(inputFile, pageNamingFunction, outputPathCreatorFunction, rowComparisonFunction, columnComparisonFunction));
 
-            try{
-                System.out.println(versionCheckResult.get(15, TimeUnit.SECONDS));
-            }catch(TimeoutException e){
-                System.out.println("Version checking timed out... :/");
-            }
+            showVersionCheckResult(versionCheckResultMessage);
 
             System.out.print("All done, press enter");
             System.console().readLine();
         }
     }
 
-    private static void handlePDFExtraction(IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction, PageNamingFunction pageNamingFunction, String inputFile) {
-        try(var pdfInput = PDDocument.load(new File(inputFile));
-            var excelOutput = new XSSFWorkbook()){
+    private static void showVersionCheckResult(CompletableFuture<String> versionCheckResultMessage) {
+        try {
+            System.out.println(versionCheckResultMessage.get(15, TimeUnit.SECONDS));
+        }catch(TimeoutException | InterruptedException | ExecutionException e) {
+            System.out.println("Version checking timed out... :/");
+        }
+    }
 
-            System.out.println("Extracting data from: " + inputFile);
-            extractPDF(autosizeColumns, emptyColumnSkipMethod, emptyRowSkipMethod, rowComparisonFunction, columnComparisonFunction, pageNamingFunction, pdfInput, excelOutput);
+    private static void handlePDFExtraction(String inputFile, PageNamingFunction pageNamingFunction, Function<Path, String> outputPathCreatorFunction,
+                                            IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction) {
+
+        System.out.println("Extracting data from: " + inputFile);
+
+        try(var pdfInput = PDDocument.load(new File(inputFile));
+            var excelOutput = extractPDF(autosizeColumns, emptyColumnSkipMethod, emptyRowSkipMethod, rowComparisonFunction, columnComparisonFunction, pageNamingFunction, pdfInput)) {
 
             var numberOfSheets = excelOutput.getNumberOfSheets();
             if(numberOfSheets > 0) {
-                var filePath = inputFile.substring(0, inputFile.lastIndexOf('.'));
-                var outputFile = Path.of(filePath + ".xlsx");
-                System.out.println("Writing " + numberOfSheets + " pages to file: " + outputFile);
+                var outputFile = Path.of(outputPathCreatorFunction.apply(Path.of(inputFile)) + ".xlsx");
+
+                System.out.println("Writing " + numberOfSheets + " sheets to file: " + outputFile);
 
                 try(var outputStream = Files.newOutputStream(outputFile)){
                     excelOutput.write(outputStream);
@@ -157,20 +95,20 @@ public final class Main {
 
                 System.out.println("Finished: " + outputFile + '\n');
             }else{
-                System.out.println("No pages were extracted from file: " + inputFile);
+                System.out.println("No sheets were extracted from file: " + inputFile);
             }
         }catch(Exception e) {
             System.out.println("An error happened, check error.txt for details");
 
-            try(var exceptionOutput = new PrintStream("error.txt")){
+            try(var exceptionOutput = new PrintStream("error.txt")) {
                 e.printStackTrace(exceptionOutput);
-            } catch (FileNotFoundException e1) {}
+            }catch(FileNotFoundException e1) {}
         }
     }
 
     @SuppressWarnings({"unchecked", "cast"})
-    public static void extractPDF(boolean autosizeColumns, int emptyColumnSkipMethod, int emptyRowSkipMethod, IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction,
-                                  PageNamingFunction pageNamingFunction, PDDocument pdfInput, XSSFWorkbook excelOutput) {
+    public static XSSFWorkbook extractPDF(boolean autosizeColumns, int emptyColumnSkipMethod, int emptyRowSkipMethod, IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction,
+                                          PageNamingFunction pageNamingFunction, PDDocument pdfInput) {
 
         var textExtractor = new SpreadsheetExtractionAlgorithm();
         var rawPages = StreamSupport.stream(Spliterators.spliteratorUnknownSize(new ObjectExtractor(pdfInput).extract(), ORDERED | IMMUTABLE), false)
@@ -178,6 +116,7 @@ public final class Main {
                                     .toArray(List[]::new);
 
         var extractedPages = (List<Table>[]) rawPages;   //Gotta love Java's non generic arrays, this cast is fine
+        var excelOutput = new XSSFWorkbook();
 
         IntStream.range(0, extractedPages.length)
                  .forEach(pageIndex -> {
@@ -186,7 +125,9 @@ public final class Main {
                      IntStream.range(0, tables.size())
                               .forEach(tableIndex -> writeTable(autosizeColumns, emptyColumnSkipMethod, emptyRowSkipMethod, rowComparisonFunction,
                                                                 columnComparisonFunction, pageNamingFunction, excelOutput, pageIndex, tables, tableIndex));
-       });
+                 });
+
+        return excelOutput;
     }
 
     private static void writeTable(boolean autosizeColumns, int emptyColumnSkipMethod, int emptyRowSkipMethod, IntPredicate rowComparisonFunction, IntPredicate columnComparisonFunction,
@@ -229,7 +170,7 @@ public final class Main {
                  .forEach(columnIndex -> excelRow.createCell(columnIndex).setCellValue(rows[rowIndex][columnIndex]));
     }
 
-    private static boolean checkFileExtension(String filePath) {
+    private static boolean checkIsPdfFile(String filePath) {
         if(!filePath.endsWith(".pdf")) {
             System.out.println(filePath + " is not a pdf file");
             return false;
@@ -278,7 +219,17 @@ public final class Main {
                                        k -> k >= value;
     }
 
-    private static String createVersionCheckingTask() {
+    private static Function<Path, String> getOutputPathCreatorFunction(int outDirMethod) {
+        return outDirMethod == 0 ? k -> stripExtension(k.toString()) :
+               outDirMethod == 1 ? k -> Components.showExcelDirectoryPicker(k.getParent().toString()) + '\\' + stripExtension(k.getFileName().toString()) :
+                                   k -> Settings.userSelectedOutputDirectory + '\\' + stripExtension(k.getFileName().toString());
+    }
+
+    private static String stripExtension(String path) {
+        return path.substring(0, path.lastIndexOf('.'));
+    }
+
+    private static String getVersionCheckResultMessage() {
         if(versionCheckingDisabled) {
             return "Local app version: " + VERSION + ", version checking was disabled in config";
         }
@@ -300,14 +251,5 @@ public final class Main {
         } catch (Exception e) {
             return "Unable to get app version from repository: https://github.com/Degubi/PDFTableExtractor";
         }
-    }
-
-    private static<T> int indexOf(T element, T[] array) {
-        for(var i = 0; i < array.length; ++i) {
-            if(array[i].equals(element)) {
-                return i;
-            }
-        }
-        return -1;
     }
 }
