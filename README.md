@@ -1,5 +1,5 @@
 # Downloading & Installing
-- Go to <a href = "https://github.com/Degubi/PDFTableExtractor/releases">releases menu</a> & download the latest installer.exe
+- Go to <a href = "https://github.com/Degubi/PDFTableExtractor/releases">releases menu</a> & download the latest installer file
 - Run the installer (don't install to ProgramFiles).
 - PDFTableExtractor shortcut appears on the Desktop.
 

@@ -1,7 +1,7 @@
-package degubi;
+package pdftableextractorlib;
 
 @FunctionalInterface
-public interface RowWalkerFunction {
+interface RowWalkerFunction {
     String apply(String[] data, int columnIndex);
 
     static RowWalkerFunction walkForwards() {

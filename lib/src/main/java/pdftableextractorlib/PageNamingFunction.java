@@ -1,4 +1,4 @@
-package degubi;
+package pdftableextractorlib;
 
 import org.apache.poi.xssf.usermodel.*;
 

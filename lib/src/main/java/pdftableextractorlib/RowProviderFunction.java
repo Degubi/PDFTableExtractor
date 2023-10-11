@@ -1,7 +1,7 @@
-package degubi;
+package pdftableextractorlib;
 
 @FunctionalInterface
-public interface RowProviderFunction {
+interface RowProviderFunction {
     String[] apply(String[][] data, int columnIndex);
 
     static RowProviderFunction providingForwards() {
