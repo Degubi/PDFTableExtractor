@@ -2,10 +2,8 @@ package degubi;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.io.*;
 import java.nio.file.*;
 import java.util.stream.*;
-import org.apache.pdfbox.pdmodel.*;
 import org.junit.jupiter.api.*;
 
 import pdftableextractorlib.*;

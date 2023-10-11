@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>PDF Table Extractor</title>
+        <link rel = "icon" type = "image/png" href = "favicon.png"/>
+        <script src = "components.js"></script>
+        <script type = "module" src = "index.js"></script>
+    </head>
+    <body>
+        <h2>Page Filters</h2><hr>
+        <span>Keep pages with number of rows</span>
+        <page-filter-selector selector-name = "pageRowNumberFilter"></page-filter-selector>
+        <br>
+        <span>Keep pages with number of columns</span>
+        <page-filter-selector selector-name = "pageColumnNumberFilter"></page-filter-selector>
+        <br>
+        <span>Skip empty rows:</span>
+        <skip-method-selector group-name = "emptyRowSkipMethodGroup"></skip-method-selector>
+        <br>
+        <span>Skip empty columns:</span>
+        <skip-method-selector group-name = "emptyColumnSkipMethodGroup"></skip-method-selector>
+        <br>
+
+        <h2>Page Output</h2><hr>
+        <label for = "pageNamingStrategySelector">Page naming strategy:</label>
+        <select id = "pageNamingStrategySelector">
+            <option value = "0">Counting</option>
+            <option value = "1">PageOrdinal - TableOrdinal</option>
+        </select>
+        <br>
+        <label for = "autosizeColumnsCheckbox">Autosize columns after extraction:</label>
+        <input id = "autosizeColumnsCheckbox" type = "checkbox" checked><br>
+        <br><br>
+
+        <input id = "inputFilePicker" type = "file" accept = ".pdf"/><br><br>
+        <div id = "statusLabel">Idle</div><br>
+        <button id = "extractButton" disabled>Extract</button>
+    </body>
+</html>

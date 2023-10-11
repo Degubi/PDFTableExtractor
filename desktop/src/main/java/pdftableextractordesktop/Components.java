@@ -50,9 +50,9 @@ public final class Components {
         panel.add(newRadioButton(300, 160, 60, "Trailing", 2, emptyColumnSkipMethod == 2, emptyColumnSkipGroup));
         panel.add(newRadioButton(380, 160, 55, "Both", 3, emptyColumnSkipMethod == 3, emptyColumnSkipGroup));
 
-        var pageNamingMethods = new String[] { "counting", "pageOrdinal-tableOrdinal" };
+        var pageNamingMethods = new String[] { "Counting", "PageOrdinal - TableOrdinal" };
         var pageNamingComboBox = newComboBox(140, 240, 150, pageNamingMethods[pageNamingMethod], pageNamingMethods);
-        var autosizeColumnsCheckBox = newCheckBox(15, 280, "Autosize Columns After Extraction", autosizeColumns);
+        var autosizeColumnsCheckBox = newCheckBox(15, 280, "Autosize columns after extraction", autosizeColumns);
 
         addSettingsSection("Page Output", 200, panel, bigBaldFont);
         panel.add(newLabel(20, 240, "Page naming strategy: "));
@@ -80,9 +80,9 @@ public final class Components {
         panel.add(customOutDirField);
         panel.add(customOutDirChooserButton);
 
-        var parallelCheckBox = newCheckBox(15, 470, "Enable Parallel File Processing", parallelExtraction);
+        var parallelCheckBox = newCheckBox(15, 470, "Enable parallel file processing", parallelExtraction);
         var pdfContextMenuCheckBox = newCheckBox(15, 500, "Enable PDF extraction context menu", contextMenuOptionEnabled);
-        var versionCheckingDisabledBox = newCheckBox(15, 530, "Disable Version Checking", versionCheckingDisabled);
+        var versionCheckingDisabledBox = newCheckBox(15, 530, "Disable version checking", versionCheckingDisabled);
         versionCheckingDisabledBox.setEnabled(Settings.isWindows());
 
         addSettingsSection("App Settings", 430, panel, bigBaldFont);
