@@ -6,8 +6,8 @@ module degubi.pdftableextractor {
     requires jakarta.json;
     requires jakarta.json.bind;
 
-    requires pdfbox;
-    requires poi;
-    requires poi.ooxml;
+    requires org.apache.pdfbox;
+    requires org.apache.poi.poi;
+    requires org.apache.poi.ooxml;
     requires tabula;
 }

@@ -36,7 +36,7 @@ public final class Settings {
     static {
         var settings = readSettings();
 
-        versionCheckingDisabled = settings.getBoolean(SETTING_VERSION_CHECKING_DISABLED, false);
+        versionCheckingDisabled = settings.getBoolean(SETTING_VERSION_CHECKING_DISABLED, true);
         rowsPerPage = settings.getInt(SETTING_ROWS_PER_PAGE, 1);
         rowComparisonMethod = settings.getInt(SETTING_ROW_COMPARISON_METHOD, 2);
         columnsPerPage = settings.getInt(SETTING_COLUMNS_PER_PAGE, 1);

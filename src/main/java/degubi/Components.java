@@ -82,6 +82,7 @@ public final class Components {
         var parallelCheckBox = newCheckBox(15, 470, "Enable Parallel File Processing", parallelExtraction);
         var pdfContextMenuCheckBox = newCheckBox(15, 500, "Enable PDF extraction context menu", contextMenuOptionEnabled);
         var versionCheckingDisabledBox = newCheckBox(15, 530, "Disable Version Checking", versionCheckingDisabled);
+        versionCheckingDisabledBox.setEnabled(System.getProperty("os.name").startsWith("Windows"));
 
         addSettingsSection("App Settings", 430, panel, bigBaldFont);
         panel.add(parallelCheckBox);
