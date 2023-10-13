@@ -15,19 +15,16 @@ jobs:
         with:
           java-version: 21
 
-      - name: Generate runtime
-        run: cd desktop && jlink --output ./runtime/ --no-man-pages --no-header-files --add-modules java.base,java.desktop,java.sql,java.net.http,jdk.crypto.ec --compress=2
+      - name: Build installer
+        run: |
+          cd desktop
+          jlink --output ./runtime/ --no-man-pages --no-header-files --add-modules java.base,java.desktop,java.sql,java.net.http,jdk.crypto.ec --compress=2
+          mvn dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=resources
+          mvn package
+          move target/PDFTableExtractor-1.0.jar resources/PDFTableExtractor.jar
+          jpackage --runtime-image runtime --input resources --main-class pdftableextractordesktop.Main --main-jar PDFTableExtractor.jar --name PDFTableExtractor --vendor Degubi --description PDFTableExtractor --icon icon.ico --win-per-user-install --win-dir-chooser --win-shortcut --win-console
 
-      - name: Copy libraries
-        run: cd desktop && mvn dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=resources
-
-      - name: Create jar
-        run: cd desktop && mvn package && move target/PDFTableExtractor-1.0.jar resources/PDFTableExtractor.jar
-
-      - name: Create installer
-        run: cd desktop && jpackage --runtime-image runtime --input resources --main-class pdftableextractordesktop.Main --main-jar PDFTableExtractor.jar --name PDFTableExtractor --vendor Degubi --description PDFTableExtractor --icon icon.ico --win-per-user-install --win-dir-chooser --win-shortcut --win-console
-
-      - name: Upload binary to release
+      - name: Upload installer to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -45,22 +42,32 @@ jobs:
           with:
             java-version: 21
 
-        - name: Generate runtime
-          run: cd desktop && jlink --output ./runtime/ --no-man-pages --no-header-files --add-modules java.base,java.desktop,java.sql,java.net.http,jdk.crypto.ec --compress=2
+        - name: Build installer
+          run: |
+            cd desktop
+            jlink --output ./runtime/ --no-man-pages --no-header-files --add-modules java.base,java.desktop,java.sql,java.net.http,jdk.crypto.ec --compress=2
+            mvn dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=resources
+            mvn package
+            mv target/PDFTableExtractorDesktop-1.0.0.jar resources/PDFTableExtractor.jar
+            jpackage --runtime-image runtime --input resources --main-class pdftableextractordesktop.Main --main-jar PDFTableExtractor.jar --name PDFTableExtractor --vendor Degubi --description PDFTableExtractor --icon icon.png --linux-shortcut
 
-        - name: Copy libraries
-          run: cd desktop && mvn dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=resources
+        - name: Modify installer (add Terminal=True & add to right click context menu)
+          run: |
+            mkdir extract
+            ar x --output extract pdftableextractor_1.0_amd64.deb
+            cd extract
+            zstd -d data.tar.zst
+            tar -xf data.tar
+            sed -i 's/Terminal=false/Terminal=true/' opt/pdftableextractor/lib/pdftableextractor-PDFTableExtractor.desktop
+            sed -i 's/Exec=\/opt\/pdftableextractor\/bin\/PDFTableExtractor/Exec=\/opt\/pdftableextractor\/bin\/PDFTableExtractor %U/' opt/pdftableextractor/lib/pdftableextractor-PDFTableExtractor.desktop
+            tar -cf data.tar opt
+            yes | zstd -z data.tar
+            cd ..
+            ar r PDFTableExtractor.deb extract/debian-binary extract/control.tar.zst extract/data.tar.zst
 
-        - name: Create jar
-          run: cd desktop && mvn package && move target/PDFTableExtractor-1.0.jar resources/PDFTableExtractor.jar
-
-        - name: Create installer
-          run: cd desktop && jpackage --runtime-image runtime --input resources --main-class pdftableextractordesktop.Main --main-jar PDFTableExtractor.jar --name PDFTableExtractor --vendor Degubi --description PDFTableExtractor --icon icon.ico --linux-shortcut
-
-        - name: Upload binary to release
+        - name: Upload installer to release
           uses: svenstaro/upload-release-action@v2
           with:
             repo_token: ${{ secrets.GITHUB_TOKEN }}
-            file: desktop/pdftableextractor_1.0_amd64.deb
-            asset_name: PDFTableExtractor.deb
+            file: desktop/PDFTableExtractor.deb
             tag: ${{ github.ref }}
