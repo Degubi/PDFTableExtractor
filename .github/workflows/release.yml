@@ -9,7 +9,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Java
         uses: actions/setup-java@v1
         with:
@@ -17,11 +17,12 @@ jobs:
 
       - name: Build installer
         run: |
+          mvn -f lib/pom.xml clean install --% -Dmaven.test.skip=true
           cd desktop
           jlink --output ./runtime/ --no-man-pages --no-header-files --add-modules java.base,java.desktop,java.sql,java.net.http,jdk.crypto.ec --compress=2
           mvn dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=resources
-          mvn package
-          move target/PDFTableExtractor-1.0.jar resources/PDFTableExtractor.jar
+          mvn clean package
+          move target/PDFTableExtractorDesktop-1.0.0.jar resources/PDFTableExtractor.jar
           jpackage --runtime-image runtime --input resources --main-class pdftableextractordesktop.Main --main-jar PDFTableExtractor.jar --name PDFTableExtractor --vendor Degubi --description PDFTableExtractor --icon icon.ico --win-per-user-install --win-dir-chooser --win-shortcut --win-console
 
       - name: Upload installer to release
@@ -33,41 +34,67 @@ jobs:
           tag: ${{ github.ref }}
 
   build_desktop_linux:
-      runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
-      steps:
-        - uses: actions/checkout@v2
-        - name: Set up Java
-          uses: actions/setup-java@v1
-          with:
-            java-version: 21
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v1
+        with:
+          java-version: 21
 
-        - name: Build installer
-          run: |
-            cd desktop
-            jlink --output ./runtime/ --no-man-pages --no-header-files --add-modules java.base,java.desktop,java.sql,java.net.http,jdk.crypto.ec --compress=2
-            mvn dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=resources
-            mvn package
-            mv target/PDFTableExtractorDesktop-1.0.0.jar resources/PDFTableExtractor.jar
-            jpackage --runtime-image runtime --input resources --main-class pdftableextractordesktop.Main --main-jar PDFTableExtractor.jar --name PDFTableExtractor --vendor Degubi --description PDFTableExtractor --icon icon.png --linux-shortcut
+      - name: Build installer
+        run: |
+          mvn -f lib/pom.xml clean install -Dmaven.test.skip=true
+          cd desktop
+          jlink --output ./runtime/ --no-man-pages --no-header-files --add-modules java.base,java.desktop,java.sql,java.net.http,jdk.crypto.ec --compress=2
+          mvn dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=resources
+          mvn clean package
+          mv target/PDFTableExtractorDesktop-1.0.0.jar resources/PDFTableExtractor.jar
+          jpackage --runtime-image runtime --input resources --main-class pdftableextractordesktop.Main --main-jar PDFTableExtractor.jar --name PDFTableExtractor --vendor Degubi --description PDFTableExtractor --icon icon.png --linux-shortcut
 
-        - name: Modify installer (add Terminal=True & add to right click context menu)
-          run: |
-            mkdir extract
-            ar x --output extract pdftableextractor_1.0_amd64.deb
-            cd extract
-            zstd -d data.tar.zst
-            tar -xf data.tar
-            sed -i 's/Terminal=false/Terminal=true/' opt/pdftableextractor/lib/pdftableextractor-PDFTableExtractor.desktop
-            sed -i 's/Exec=\/opt\/pdftableextractor\/bin\/PDFTableExtractor/Exec=\/opt\/pdftableextractor\/bin\/PDFTableExtractor %U/' opt/pdftableextractor/lib/pdftableextractor-PDFTableExtractor.desktop
-            tar -cf data.tar opt
-            yes | zstd -z data.tar
-            cd ..
-            ar r PDFTableExtractor.deb extract/debian-binary extract/control.tar.zst extract/data.tar.zst
+      - name: Modify installer (add Terminal=True & add to right click context menu)
+        run: |
+          cd desktop
+          mkdir extract
+          ar x --output extract pdftableextractor_1.0_amd64.deb
+          cd extract
+          zstd -d data.tar.zst
+          tar -xf data.tar
+          sed -i 's/Terminal=false/Terminal=true/' opt/pdftableextractor/lib/pdftableextractor-PDFTableExtractor.desktop
+          sed -i 's/Exec=\/opt\/pdftableextractor\/bin\/PDFTableExtractor/Exec=\/opt\/pdftableextractor\/bin\/PDFTableExtractor %U/' opt/pdftableextractor/lib/pdftableextractor-PDFTableExtractor.desktop
+          tar -cf data.tar opt
+          yes | zstd -z data.tar
+          cd ..
+          ar r PDFTableExtractor.deb extract/debian-binary extract/control.tar.zst extract/data.tar.zst
 
-        - name: Upload installer to release
-          uses: svenstaro/upload-release-action@v2
-          with:
-            repo_token: ${{ secrets.GITHUB_TOKEN }}
-            file: desktop/PDFTableExtractor.deb
-            tag: ${{ github.ref }}
+      - name: Upload installer to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: desktop/PDFTableExtractor.deb
+          tag: ${{ github.ref }}
+
+  build_web:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v1
+        with:
+          java-version: 21
+
+      - name: Build application
+        run: |
+          mvn -f lib/pom.xml clean install -Dmaven.test.skip=true
+          cd web
+          mvn clean package
+
+      - name: Upload application to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: web/target/PDFTableExtractorWeb-1.0.0.jar
+          asset_name: PDFTableExtractorWeb.jar
+          tag: ${{ github.ref }}
